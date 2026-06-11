@@ -1,0 +1,21 @@
+# Markdownlint configuration for this repository (release creator action)
+---
+# Markdownlint configuration
+# See https://github.com/DavidAnson/markdownlint for rule details
+
+# Disabled rules for skills documentation formatting preferences:
+MD013: false # Line length - allow long URLs, code, etc.
+MD022: false # Blanks around headings - formatting preference
+MD024: false # Duplicate headings - allow in examples/sections
+MD026: false # Trailing punctuation - allow colons in headings
+MD029: false # Ordered list prefix - flexible numbering
+MD031: false # Blanks around fences - formatting preference
+MD032: false # Blanks around lists - formatting preference
+MD033: false # Inline HTML - needed for custom elements
+MD034: false # Bare URL - allow URLs without angle brackets
+MD036: false # Emphasis as heading - allow bold for emphasis
+MD040: false # Fenced code language - some examples don't need it
+MD060: false # Table column style - auto-formatter handles spacing
+# Example:
+# MD033: false  # Allow inline HTML
+# MD041: false  # First line in file should be a top-level heading

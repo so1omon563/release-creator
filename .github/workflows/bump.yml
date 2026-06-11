@@ -1,0 +1,61 @@
+---
+name: Version Bump
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  bump-version:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      new_tag: ${{ steps.bump.outputs.new_version }}
+      skipped: ${{ steps.bump.outputs.skipped }}
+      release_requested: ${{ steps.bump.outputs.should_release }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - id: bump
+        uses: so1omon563/custom-semver-bumper@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Floating pointer tags (v1, v1.2) are intentionally NOT set here —
+          # the release-creator (create-release job below) owns them and only
+          # moves them when a GitHub Release is actually published.
+          # Uncomment to customise bump behaviour:
+          # default_bump: patch
+          # prerelease_suffix: ""
+
+  create-release:
+    name: Create GitHub Release
+    needs: bump-version
+    # Only run when the commit contained a release marker (#release / #publish /
+    # #ship) and the bump wasn't skipped.
+    if: |
+      needs.bump-version.outputs.release_requested == 'true' &&
+      needs.bump-version.outputs.skipped != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create release
+        uses: ./
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ needs.bump-version.outputs.new_tag }}
+          tag-prefix: v
+          notes-format: grouped
+          move-major-tag: 'true'
+          move-minor-tag: 'true'

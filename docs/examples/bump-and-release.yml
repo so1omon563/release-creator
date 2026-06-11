@@ -1,0 +1,118 @@
+# ============================================================================
+# bump-and-release.yml — Example: Chaining semver-bumper + release-creator
+# ============================================================================
+#
+# Drop this file into .github/workflows/ in any repository that uses both:
+#   - so1omon563/custom-semver-bumper
+#   - so1omon563/sharedactions-action-release-creator
+#
+# HOW IT WORKS
+# ------------
+# Every merged PR automatically creates a version tag via the bump job.
+# To ALSO create a GitHub Release from that tag, include one of these
+# markers anywhere in the PR title or body:
+#
+#   #release  → forces a stable tag AND creates a GitHub Release
+#   #publish  → creates a GitHub Release (no effect on tag stability)
+#   #ship     → creates a GitHub Release (no effect on tag stability)
+#
+# Markers are case-insensitive.
+#
+# PRE-RELEASE SUPPORT
+# -------------------
+# If your workflow uses prerelease_suffix (e.g. "alpha"), the bumper will
+# produce a pre-release tag (e.g. v1.2.0-alpha.1). Using #release or the
+# other markers with a pre-release workflow will create a pre-release GitHub
+# Release — the release creator detects this automatically via prerelease: auto.
+#
+# WHY THE SAME WORKFLOW RUN?
+# --------------------------
+# GitHub Actions GITHUB_TOKEN tag pushes do NOT trigger other workflows.
+# The release job must live in the same workflow as the bump job.
+#
+# FLOATING POINTER TAGS
+# ----------------------
+# If you want v1 / v1.2 to always point to the latest stable release, enable
+# move-major-tag and/or move-minor-tag on the RELEASE CREATOR (create-release job),
+# NOT on the bumper. The bumper runs on every merge; floating tags should only
+# advance when a release is intentionally published.
+#
+# ============================================================================
+
+name: Version Bump and Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  bump-version:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    # Expose the bump outputs so the release job can read them.
+    outputs:
+      new_tag: ${{ steps.bump.outputs.new_version }}
+      skipped: ${{ steps.bump.outputs.skipped }}
+      release_requested: ${{ steps.bump.outputs.should_release }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - id: bump
+        uses: so1omon563/custom-semver-bumper@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Uncomment to customise bump behaviour:
+          # default_bump: patch         # Default bump when no marker present
+          # prerelease_suffix: alpha    # Produce pre-release tags by default
+          # DO NOT set move_major_tag/move_minor_tag here — the release-creator owns them.
+
+  create-release:
+    name: Create GitHub Release
+    needs: bump-version
+    # Only run when the commit contained a release marker and the bump wasn't skipped.
+    # Skipped bumps (e.g. #skip) will never create a release even if #release is present.
+    if: |
+      needs.bump-version.outputs.release_requested == 'true' &&
+      needs.bump-version.outputs.skipped != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Release
+        uses: so1omon563/sharedactions-action-release-creator@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ needs.bump-version.outputs.new_tag }}
+          tag-prefix: v
+
+          # Release note format. Options: grouped | conventional | flat | github-native
+          # grouped    → emoji section headers grouped by commit type (default)
+          # conventional → flat list with "type: message" format
+          # flat       → plain commit messages only
+          # github-native → delegates to GitHub's built-in release notes generator
+          notes-format: grouped
+
+          # Floating pointer tags — disabled by default.
+          # Enable here (NOT on the bumper) to keep v1 / v1.2 pointing to the latest
+          # stable release. Only safe on repositories that follow strict semver tagging.
+          # move-major-tag: 'true'
+          # move-minor-tag: 'true'
+
+          # Uncomment to use a custom release title (defaults to the tag name):
+          # release-name: 'My App ${{ needs.bump-version.outputs.new_tag }}'
+
+          # Uncomment to limit release notes to commits touching a specific path
+          # (useful in monorepos):
+          # path-filter: 'services/my-service'

@@ -1,0 +1,90 @@
+name: Bug Report
+description: Report a bug or unexpected behaviour in the Release Creator action.
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug. Please fill in as much detail as
+        possible to help us reproduce and fix the issue.
+
+  - type: checkboxes
+    id: existing-issues
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I have searched [existing issues](https://github.com/so1omon563/sharedactions-action-release-creator/issues) and this has not been reported before.
+          required: true
+        - label: I am using a [supported version](https://github.com/so1omon563/sharedactions-action-release-creator/releases) of the action.
+          required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: A clear and concise description of what the bug is.
+      placeholder: "Example: Release notes are empty even though commits exist in the range between from-tag and to-tag."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: >
+        Step-by-step instructions to reproduce the behaviour. Include your workflow
+        configuration and relevant tag or commit information if applicable.
+      placeholder: |
+        1. Configure the action with `notes-format: grouped`
+        2. Push a tag that contains conventional commits in its range
+        3. Observe that the release is created with empty release notes
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What actually happened? Include any error messages or unexpected output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow configuration
+      description: >
+        Paste the relevant portion of your workflow YAML. Remove any sensitive values.
+      render: yaml
+    validations:
+      required: false
+
+  - type: input
+    id: action-version
+    attributes:
+      label: Action version
+      description: Which version (tag or SHA) of the action are you using?
+      placeholder: "e.g. v1.2.0 or @main"
+    validations:
+      required: true
+
+  - type: input
+    id: runner
+    attributes:
+      label: Runner OS
+      description: What GitHub Actions runner OS are you using?
+      placeholder: "e.g. ubuntu-latest"
+    validations:
+      required: false
+
+    validations:
+      required: false

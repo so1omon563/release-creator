@@ -1,0 +1,162 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: make shellcheck
+
+      - name: Run full test suite
+        run: make test-all
+
+  self-test:
+    name: Self-Test (action smoke test)
+    runs-on: ubuntu-latest
+    # Validates action wiring on every PR and push to main.
+    # Selects a tag that already has a published release and passes
+    # skip-if-release-exists: 'true' so gh release create is never invoked —
+    # the action exits early after generating notes, with zero side effects.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Get tag with existing release
+        id: test-tag
+        run: |
+          tag="$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Self-test release notes generation
+        if: steps.test-tag.outputs.tag != ''
+        uses: ./
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.test-tag.outputs.tag }}
+          notes-format: grouped
+          skip-if-release-exists: 'true'
+
+  coverage:
+    name: Coverage Gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # Check out the PR head branch by name so badge commits push cleanly
+          # to the PR branch rather than on top of the detached merge ref.
+          ref: ${{ github.head_ref || github.ref }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          # Install bats-core from source (not always in apt)
+          git clone --depth=1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          sudo /tmp/bats-core/install.sh /usr/local
+          # Install kcov: try apt first (Ubuntu 24.04+), build from source as fallback
+          if ! sudo apt-get install -y kcov 2>/dev/null; then
+            echo "kcov not in apt — building from source"
+            sudo apt-get install -y binutils-dev libdw-dev libcurl4-openssl-dev cmake
+            git clone --depth=1 --branch v42 https://github.com/SimonKagstrom/kcov.git /tmp/kcov
+            cmake -S /tmp/kcov -B /tmp/kcov-build -DCMAKE_BUILD_TYPE=Release
+            sudo cmake --build /tmp/kcov-build --target install --parallel "$(nproc)"
+          fi
+
+      - name: Run coverage gate
+        run: make coverage COVERAGE_THRESHOLD=70
+
+      - name: Extract coverage percentage
+        id: cov
+        run: |
+          set +e
+          set +o pipefail
+          COVERAGE_RAW=$(find coverage -name 'cobertura.xml' 2>/dev/null \
+            | xargs -r grep -oP 'line-rate="\K[0-9.]+' 2>/dev/null \
+            | head -1)
+          set -e
+          set -o pipefail
+
+          if [ -n "$COVERAGE_RAW" ]; then
+            COVERAGE=$(awk '{printf "%d", $1 * 100}' <<< "$COVERAGE_RAW")
+          else
+            COVERAGE="unknown"
+          fi
+
+          echo "percentage=$COVERAGE" >> "$GITHUB_OUTPUT"
+          echo "Coverage: ${COVERAGE}%"
+
+      - name: Update coverage badge
+        # Runs during PR checks (not after merge). Fork PRs are excluded because
+        # GITHUB_TOKEN is read-only for forks and the push would fail.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          PCT="${{ steps.cov.outputs.percentage }}"
+          if echo "$PCT" | grep -qE '^[0-9]+$' && [ "$PCT" -ge 80 ]; then
+            COLOR="brightgreen"
+          elif echo "$PCT" | grep -qE '^[0-9]+$' && [ "$PCT" -ge 70 ]; then
+            COLOR="yellow"
+          elif echo "$PCT" | grep -qE '^[0-9]+$'; then
+            COLOR="red"
+          else
+            PCT="unknown"
+            COLOR="lightgrey"
+          fi
+          if echo "$PCT" | grep -qE '^[0-9]+$'; then
+            BADGE_PCT="${PCT}%25"
+          else
+            BADGE_PCT="$PCT"
+          fi
+          BADGE_URL="https://img.shields.io/badge/coverage-${BADGE_PCT}-${COLOR}"
+          sed -i "s|https://img.shields.io/badge/coverage-[^)]*|${BADGE_URL}|" README.md
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --staged --quiet || git commit -m "ci: update coverage badge [skip ci]"
+          git push origin "HEAD:${{ github.head_ref }}" \
+            || echo "::warning::Coverage badge push failed. Badge may be stale."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/

@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project Scope
+    url: https://github.com/so1omon563/sharedactions-action-release-creator#project-scope
+    about: >
+      Read this before opening a feature request. This action creates GitHub Releases
+      with release notes from conventional commits — not a Git tag bumper.
+      Requests outside this scope will be closed.
+  - name: Feature Request Policy
+    url: https://github.com/so1omon563/sharedactions-action-release-creator/blob/main/CONTRIBUTING.md#feature-request-policy
+    about: >
+      Read this to understand what kinds of feature requests will be accepted and
+      what tools to use for out-of-scope needs (Git tag creation, deployment, etc.).

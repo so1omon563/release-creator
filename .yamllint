@@ -1,0 +1,17 @@
+---
+# yamllint configuration
+extends: default
+
+rules:
+  # Allow 1 space before inline comments (auto-formatter preference)
+  comments:
+    min-spaces-from-content: 1
+
+  # Common overrides
+  line-length:
+    max: 120
+    level: warning
+
+  # Allow truthy values in GitHub Actions
+  truthy:
+    allowed-values: ["true", "false", "on", "off"]

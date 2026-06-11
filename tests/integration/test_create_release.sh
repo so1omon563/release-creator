@@ -1,0 +1,575 @@
+#!/usr/bin/env bash
+# tests/integration/test_create_release.sh
+# Integration tests for scripts/create-release.sh using a mocked gh CLI.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+PASS=0
+FAIL=0
+
+check() {
+  local desc="$1"
+  local expected="$2"
+  local actual="$3"
+  if [[ "${actual}" == "${expected}" ]]; then
+    echo "  PASS: ${desc}"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: ${desc}"
+    echo "        expected='${expected}' got='${actual}'"
+    ((FAIL++)) || true
+  fi
+}
+
+check_contains() {
+  local desc="$1"
+  local needle="$2"
+  local haystack="$3"
+  if echo "${haystack}" | grep -qF -- "${needle}"; then
+    echo "  PASS: ${desc}"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: ${desc}"
+    echo "        expected to find: '${needle}'"
+    echo "        in: '${haystack}'"
+    ((FAIL++)) || true
+  fi
+}
+
+check_not_contains() {
+  local desc="$1"
+  local needle="$2"
+  local haystack="$3"
+  if ! echo "${haystack}" | grep -qF -- "${needle}"; then
+    echo "  PASS: ${desc}"
+    ((PASS++)) || true
+  else
+    echo "  FAIL: ${desc}"
+    echo "        expected NOT to find: '${needle}'"
+    echo "        in: '${haystack}'"
+    ((FAIL++)) || true
+  fi
+}
+
+# ── Setup test environment ────────────────────────────────────────────────
+TMPDIR="$(mktemp -d /tmp/rc_test_integration_XXXXXX)"
+# shellcheck disable=SC2064
+trap "rm -rf '${TMPDIR}'" EXIT
+
+# Set up a fake git repo
+cd "${TMPDIR}"
+git init -q
+git config user.email "test@example.com"
+git config user.name "Test"
+
+echo "init" > README.md
+git add README.md
+git commit -q -m "chore: initial commit"
+git tag v0.1.0
+
+echo "a" > a.txt; git add a.txt; git commit -q -m "feat: add export feature"
+echo "b" > b.txt; git add b.txt; git commit -q -m "fix: correct null check"
+git tag v0.2.0
+
+# Mock gh CLI
+MOCK_GH="${TMPDIR}/bin/gh"
+mkdir -p "${TMPDIR}/bin"
+cat > "${MOCK_GH}" << 'EOF'
+#!/usr/bin/env bash
+# Mock gh CLI that records invocations and returns fake JSON
+
+CALL_LOG="${MOCK_GH_CALL_LOG:-/tmp/mock_gh_calls.log}"
+
+case "${1:-}" in
+  release)
+    case "${2:-}" in
+      view)
+        # Handle --json id,url,uploadUrl (post-create metadata fetch)
+        if [[ "${*}" == *"--json"* && "${*}" == *"uploadUrl"* ]]; then
+          _tag="${3}"
+          echo '{"id":12345,"url":"https://github.com/test/repo/releases/tag/'"${_tag}"'","uploadUrl":"https://uploads.github.com/repos/test/repo/releases/12345/assets{?name,label}"}'
+          exit 0
+        fi
+        # Simulate "release not found" unless MOCK_RELEASE_EXISTS=true
+        if [[ "${MOCK_RELEASE_EXISTS:-false}" == "true" ]]; then
+          echo '{"tagName":"'"${3}"'"}'
+          exit 0
+        else
+          echo "release not found" >&2
+          exit 1
+        fi
+        ;;
+      create)
+        if [[ "${MOCK_CREATE_FAIL:-false}" == "true" ]]; then
+          echo "error: release creation failed" >&2
+          exit 1
+        fi
+        echo "$@" >> "${CALL_LOG}"
+        # gh release create outputs the release URL to stdout
+        echo "https://github.com/test/repo/releases/tag/v0.2.0"
+        exit 0
+        ;;
+    esac
+    ;;
+  api)
+    # Handle gh api calls for floating tag ref creation/update
+    echo "$@" >> "${CALL_LOG}"
+    # PATCH repos/.../git/refs/tags/... — update existing ref
+    # POST  repos/.../git/refs         — create new ref
+    # Both succeed silently
+    exit 0
+    ;;
+esac
+echo "mock gh: unhandled command $*" >&2
+exit 1
+EOF
+chmod +x "${MOCK_GH}"
+export PATH="${TMPDIR}/bin:${PATH}"
+
+CALL_LOG="${TMPDIR}/gh_calls.log"
+export MOCK_GH_CALL_LOG="${CALL_LOG}"
+export GH_TOKEN="test-token"
+export GITHUB_OUTPUT="${TMPDIR}/github_output.txt"
+export ACTION_PATH="${REPO_ROOT}"
+
+echo "--- integration: create-release ---"
+
+# ── Test 1: Basic release creation ───────────────────────────────────────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="auto" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="v0.1.0" \
+INPUT_TO_TAG="v0.2.0" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+output_content="$(cat "${GITHUB_OUTPUT}")"
+check_contains "basic: created=true in output"   "created"    "${output_content}"
+check_contains "basic: tag-name in output"        "v0.2.0"     "${output_content}"
+check_contains "basic: release-url in output"     "releases"   "${output_content}"
+
+# ── Test 2: Pre-release auto-detection ────────────────────────────────────
+: > "${GITHUB_OUTPUT}"
+
+git tag v0.3.0-rc.1
+
+INPUT_TAG="v0.3.0-rc.1" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="auto" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="flat" \
+INPUT_FROM_TAG="v0.2.0" \
+INPUT_TO_TAG="v0.3.0-rc.1" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+gh_call="$(cat "${CALL_LOG}")"
+check_contains "prerelease: --prerelease flag passed" "--prerelease" "${gh_call}"
+
+# ── Test 3: skip-if-release-exists=true when release exists ─────────────
+: > "${GITHUB_OUTPUT}"
+export MOCK_RELEASE_EXISTS="true"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="true" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+skip_output="$(cat "${GITHUB_OUTPUT}")"
+check_contains "skip: skipped=true in output"  "skipped" "${skip_output}"
+check_contains "skip: created=false in output" "false"   "${skip_output}"
+
+unset MOCK_RELEASE_EXISTS
+
+# ── Test 4: fail-on-error=false swallows errors ───────────────────────────
+: > "${GITHUB_OUTPUT}"
+
+# Pass an invalid token scenario — just test the output fields.
+# GITHUB_REF_NAME must be cleared: create-release.sh falls back to it when
+# INPUT_TAG is empty, and the CI runner sets it to the PR ref (e.g. "2/merge").
+INPUT_TAG="" \
+GITHUB_REF_NAME="" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="false" \
+bash "${REPO_ROOT}/scripts/create-release.sh" || true
+
+soft_fail_output="$(cat "${GITHUB_OUTPUT}")"
+check_contains "soft-fail: created=false" "false" "${soft_fail_output}"
+
+# ── Test 5: Explicit prerelease=true ─────────────────────────────────────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="explicit body" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="true" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+check_contains "prerelease=true: --prerelease flag present" "--prerelease" "$(cat "${CALL_LOG}")"
+
+# ── Test 6: Explicit prerelease=false ────────────────────────────────────
+: > "${CALL_LOG}"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="explicit body" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+check_not_contains "prerelease=false: no --prerelease flag" "--prerelease" "$(cat "${CALL_LOG}")"
+
+# ── Test 7: draft=true ───────────────────────────────────────────────────
+: > "${CALL_LOG}"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="explicit body" \
+INPUT_DRAFT="true" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+check_contains "draft=true: --draft flag present" "--draft" "$(cat "${CALL_LOG}")"
+
+# ── Test 8: target-commitish set ─────────────────────────────────────────
+: > "${CALL_LOG}"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="explicit body" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="some-branch" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+check_contains "target-commitish: --target flag present"  "--target"    "$(cat "${CALL_LOG}")"
+check_contains "target-commitish: target value present"   "some-branch" "$(cat "${CALL_LOG}")"
+
+# ── Test 9: asset-paths with flat glob pattern ───────────────────────────
+: > "${CALL_LOG}"
+mkdir -p "${TMPDIR}/dist"
+echo "binary content" > "${TMPDIR}/dist/app.tar.gz"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="explicit body" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="dist/app.tar.gz" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+check_contains "assets-flat: file appended to gh args" "app.tar.gz" "$(cat "${CALL_LOG}")"
+
+# ── Test 10: asset-paths with ** recursive glob (regression for globstar fix)
+: > "${CALL_LOG}"
+mkdir -p "${TMPDIR}/dist/nested"
+echo "wheel content" > "${TMPDIR}/dist/nested/app.whl"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="explicit body" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="dist/**/*.whl" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+check_contains "assets-glob: ** recursive pattern finds nested file" "app.whl" "$(cat "${CALL_LOG}")"
+
+# ── Test 10b: asset-paths starting with ** (no leading dir) ─────────────
+# Pattern "**/*.whl" should search from current directory, not "**" directory.
+: > "${CALL_LOG}"
+mkdir -p "${TMPDIR}/rootlevel"
+echo "root wheel" > "${TMPDIR}/rootlevel/root.whl"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="explicit body" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="**/*.whl" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+check_contains "assets-glob-root: **/*.whl matches files from cwd" "root.whl" "$(cat "${CALL_LOG}")"
+
+# ── Test 11: gh release create fails with fail-on-error=true ─────────────
+: > "${GITHUB_OUTPUT}"
+export MOCK_CREATE_FAIL="true"
+
+exit_code=0
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="explicit body" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh" 2>/dev/null || exit_code=$?
+
+check "gh-fail: exits non-zero with fail-on-error=true" "1" "${exit_code}"
+unset MOCK_CREATE_FAIL
+
+# ── Test 12: BODY explicitly set bypasses generate-notes ─────────────────
+: > "${CALL_LOG}"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="My hand-written release notes." \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+check_contains "explicit-body: --notes flag in gh args"      "--notes"                       "$(cat "${CALL_LOG}")"
+check_contains "explicit-body: body content passed to gh"    "My hand-written release notes" "$(cat "${CALL_LOG}")"
+
+# ── Test 13: set_output fallback to stdout when GITHUB_OUTPUT unset ──────
+stdout_output="$(
+  GITHUB_OUTPUT="" \
+  INPUT_TAG="v0.2.0" \
+  INPUT_RELEASE_NAME="" \
+  INPUT_BODY="test body" \
+  INPUT_DRAFT="false" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_ASSET_PATHS="" \
+  INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+  INPUT_PATH_FILTER="" \
+  INPUT_TAG_PREFIX="" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>/dev/null
+)"
+
+check_contains "set_output-fallback: stdout has OUTPUT key=value" "OUTPUT release-url=" "${stdout_output}"
+
+# ── Test 14: move-major-tag moves the major floating pointer tag ───────────
+# No bare repo needed - tag movement now goes through gh api (not git push)
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+move_major_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_RELEASE_NAME="" \
+  INPUT_BODY="stable release" \
+  INPUT_DRAFT="false" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_ASSET_PATHS="" \
+  INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+  INPUT_PATH_FILTER="" \
+  INPUT_TAG_PREFIX="v" \
+  INPUT_FAIL_ON_ERROR="true" \
+  INPUT_MOVE_MAJOR_TAG="true" \
+  INPUT_MOVE_MINOR_TAG="false" \
+  GITHUB_REPOSITORY="test/repo" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)"
+
+check_contains "move-major-tag: log says Moved v0" "Moved v0." "${move_major_output}"
+check_contains "move-major-tag: gh api called for v0" "git/refs" "$(cat "${CALL_LOG}")"
+
+# ── Test 15: move-minor-tag moves the minor floating pointer tag ───────────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+move_minor_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_RELEASE_NAME="" \
+  INPUT_BODY="stable release" \
+  INPUT_DRAFT="false" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_ASSET_PATHS="" \
+  INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+  INPUT_PATH_FILTER="" \
+  INPUT_TAG_PREFIX="v" \
+  INPUT_FAIL_ON_ERROR="true" \
+  INPUT_MOVE_MAJOR_TAG="false" \
+  INPUT_MOVE_MINOR_TAG="true" \
+  GITHUB_REPOSITORY="test/repo" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)"
+
+check_contains "move-minor-tag: log says Moved v0.2" "Moved v0.2." "${move_minor_output}"
+check_contains "move-minor-tag: gh api called for v0.2" "git/refs" "$(cat "${CALL_LOG}")"
+
+# ── Test 16: floating tags skipped for pre-release ────────────────────────
+git tag v0.4.0-rc.1
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+prerelease_move_output="$(
+  INPUT_TAG="v0.4.0-rc.1" \
+  INPUT_RELEASE_NAME="" \
+  INPUT_BODY="pre-release" \
+  INPUT_DRAFT="false" \
+  INPUT_PRERELEASE="auto" \
+  INPUT_TARGET_COMMITISH="" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_ASSET_PATHS="" \
+  INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+  INPUT_PATH_FILTER="" \
+  INPUT_TAG_PREFIX="v" \
+  INPUT_FAIL_ON_ERROR="true" \
+  INPUT_MOVE_MAJOR_TAG="true" \
+  INPUT_MOVE_MINOR_TAG="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)"
+
+check_contains "floating-tags-prerelease: skip log message present" "Skipping floating pointer tag movement" "${prerelease_move_output}"
+check_not_contains "floating-tags-prerelease: v0 not moved" "Moved v0." "${prerelease_move_output}"
+
+# ── Test 17: major-only tag (e.g. "v1") with move-minor-tag does not produce bogus minor tag
+git tag v5
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+major_only_output="$(
+  INPUT_TAG="v5" \
+  INPUT_RELEASE_NAME="" \
+  INPUT_BODY="major-only tag test" \
+  INPUT_DRAFT="false" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_ASSET_PATHS="" \
+  INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+  INPUT_PATH_FILTER="" \
+  INPUT_TAG_PREFIX="v" \
+  INPUT_FAIL_ON_ERROR="true" \
+  INPUT_MOVE_MAJOR_TAG="false" \
+  INPUT_MOVE_MINOR_TAG="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)"
+
+check_contains "major-only-tag: warns could not parse MAJOR.MINOR" "Could not parse MAJOR.MINOR" "${major_only_output}"
+check_not_contains "major-only-tag: no bogus Moved v5.5 tag" "Moved v5.5" "${major_only_output}"
+
+echo ""
+echo "integration: ${PASS} passed, ${FAIL} failed"
+[[ ${FAIL} -eq 0 ]]

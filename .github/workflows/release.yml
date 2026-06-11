@@ -1,0 +1,47 @@
+---
+name: Create Release
+
+# Manual release creation — use this as an escape hatch when:
+#   - A tag was bumped without a release marker and you want to publish a release now
+#   - The create-release job in bump.yml failed and you need to re-run
+#   - A tag was pushed manually (e.g. with a PAT) outside of bump.yml
+#
+# Normal automated flow: include #release, #publish, or #ship in a PR title or body.
+# bump.yml detects the marker, bumps the tag, and runs the create-release job —
+# all in the same workflow run (required because GITHUB_TOKEN tag pushes cannot
+# trigger other workflows).
+#
+# Note: The push: tags: trigger has been intentionally removed. GITHUB_TOKEN-pushed
+# tags cannot fire it, and the automated flow is now owned by bump.yml. If you need
+# to release a manually PAT-pushed tag, use workflow_dispatch below.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v1.0.0)"
+        required: true
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create release
+        # Uses the local action directly — true dogfooding and avoids a branch/tag pin.
+        uses: ./
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.event.inputs.tag }}
+          tag-prefix: v
+          notes-format: grouped
+          move-major-tag: "true"
+          move-minor-tag: "true"

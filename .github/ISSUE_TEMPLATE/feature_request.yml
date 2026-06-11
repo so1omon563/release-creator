@@ -1,0 +1,69 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for the Release Creator action.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you continue
+
+        **This action creates GitHub Releases with auto-generated release notes from
+        conventional commit history. That is all it does.**
+
+        Please read the [Project Scope](https://github.com/so1omon563/sharedactions-action-release-creator#project-scope)
+        section of the README before submitting. Requests that fall outside the defined scope
+        will be closed without merging.
+
+        If you need Git tag creation or semver bumping, that is not in scope for this
+        action — use [sharedactions-action-custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper)
+        instead. See the [Feature Request Policy](https://github.com/so1omon563/sharedactions-action-release-creator/blob/main/CONTRIBUTING.md#feature-request-policy)
+        in CONTRIBUTING.md for more guidance.
+
+  - type: checkboxes
+    id: scope-confirmation
+    attributes:
+      label: Scope confirmation
+      description: >
+        Confirm you have read the Project Scope section before submitting this request.
+      options:
+        - label: >
+            I have read the [Project Scope](https://github.com/so1omon563/sharedactions-action-release-creator#project-scope)
+            section of the README and confirmed this request is about GitHub Release creation,
+            release note generation, or the inputs/outputs that control them — not about
+            Git tag creation, deployment, or manifest updates.
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature description
+      description: >
+        Describe the feature. Explain specifically how it relates to generating release
+        notes or creating a GitHub Release. If this is about Git tag creation or deployment,
+        it is out of scope.
+      placeholder: "Example: Add support for grouping commits by scope within each conventional commit type section."
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: >
+        Describe the workflow or scenario where this feature is needed. What problem does
+        it solve that cannot be addressed with the existing inputs?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: >
+        Have you considered any workarounds or alternative approaches? Describe them here.
+    validations:
+      required: false
+
+    validations:
+      required: false

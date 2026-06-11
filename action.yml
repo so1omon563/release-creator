@@ -1,0 +1,192 @@
+name: Release Creator
+description: >-
+  Creates a GitHub Release with auto-generated release notes from conventional
+  commit history. Supports grouped, conventional, flat, and GitHub-native note
+  formats. Works standalone or chained with sharedactions-action-custom-semver-bumper.
+
+inputs:
+  tag:
+    description: >-
+      The tag name for the release (e.g. v1.2.3). Required unless the workflow
+      is triggered by a tag push, in which case the tag is inferred from
+      github.ref_name.
+    required: false
+    default: ''
+
+  token:
+    description: >-
+      GitHub token used to create the release and upload assets. Must have
+      contents: write permission.
+    required: true
+
+  release-name:
+    description: >-
+      Display name for the release. Defaults to the tag name when not provided.
+    required: false
+    default: ''
+
+  body:
+    description: >-
+      Explicit release body text. When provided, overrides auto-generated notes.
+    required: false
+    default: ''
+
+  draft:
+    description: Create the release as a draft (not published).
+    required: false
+    default: 'false'
+
+  prerelease:
+    description: >-
+      Mark the release as a pre-release. When set to 'auto', the tag name is
+      inspected for a SemVer §9 pre-release identifier — any hyphen-separated
+      label immediately after the patch version is treated as a pre-release
+      (e.g. -alpha.1, -rc.2, -enterprise.1, -team-blue.3). Tags with SemVer
+      §10 build metadata only (e.g. v1.2.3+sha.abc) are treated as stable.
+      Set to 'true' or 'false' to override auto-detection.
+    required: false
+    default: 'auto'
+
+  target-commitish:
+    description: >-
+      Specifies the commitish value that the tag is created from. Defaults to
+      the repository default branch.
+    required: false
+    default: ''
+
+  notes-format:
+    description: >-
+      Format for auto-generated release notes. Ignored when body is provided.
+      Options: grouped (emoji section headers), conventional (flat list with
+      type prefix), flat (plain commit messages), github-native (delegate to
+      GitHub's built-in release notes generator).
+    required: false
+    default: grouped
+
+  from-tag:
+    description: >-
+      Start of the commit range used for release note generation (exclusive).
+      Typically the previous release tag. When omitted, the action uses the
+      tag immediately preceding the to-tag.
+    required: false
+    default: ''
+
+  to-tag:
+    description: >-
+      End of the commit range used for release note generation (inclusive).
+      Defaults to the value of the tag input.
+    required: false
+    default: ''
+
+  asset-paths:
+    description: >-
+      Newline-separated list of glob patterns for files to upload as release
+      assets. Each pattern is expanded relative to the workspace root.
+    required: false
+    default: ''
+
+  skip-if-release-exists:
+    description: >-
+      When true, the action exits successfully without creating a release if
+      one already exists for the given tag. The skipped output is set to true.
+    required: false
+    default: 'false'
+
+  path-filter:
+    description: >-
+      Limit release notes to commits that touch files under this path. Useful
+      for monorepos. Accepts a single directory or file path.
+    required: false
+    default: ''
+
+  tag-prefix:
+    description: >-
+      Prefix to strip when comparing version numbers (e.g. v for tags like
+      v1.2.3). Used during pre-release auto-detection and version comparisons.
+      When chaining with sharedactions-action-custom-semver-bumper, set this
+      to match the bumper's tag_prefix input (default: v).
+    required: false
+    default: ''
+
+  fail-on-error:
+    description: >-
+      When true, the action fails if release creation or asset upload
+      encounters an error. When false, errors are logged and the action
+      exits successfully with created=false.
+    required: false
+    default: 'true'
+
+  move-major-tag:
+    required: false
+    default: 'false'
+    description: >-
+      Move the major floating pointer tag (e.g. v1) to point to the commit
+      this release was created from. Skipped automatically when the release
+      is detected as a pre-release — floating pointer tags must only ever
+      reference stable commits.
+
+  move-minor-tag:
+    required: false
+    default: 'false'
+    description: >-
+      Move the minor floating pointer tag (e.g. v1.3) to point to the commit
+      this release was created from. Skipped automatically when the release
+      is detected as a pre-release — same reason as move-major-tag.
+
+outputs:
+  release-url:
+    description: HTML URL of the created GitHub Release.
+    value: ${{ steps.create-release.outputs.release-url }}
+
+  release-id:
+    description: Numeric ID of the created GitHub Release.
+    value: ${{ steps.create-release.outputs.release-id }}
+
+  upload-url:
+    description: >-
+      Upload URL template for attaching additional assets to the release
+      after the action completes.
+    value: ${{ steps.create-release.outputs.upload-url }}
+
+  tag-name:
+    description: The tag name used for the release.
+    value: ${{ steps.create-release.outputs.tag-name }}
+
+  created:
+    description: >-
+      Set to true when a new release was created, false when creation was
+      skipped or failed (with fail-on-error: false).
+    value: ${{ steps.create-release.outputs.created }}
+
+  skipped:
+    description: >-
+      Set to true when skip-if-release-exists is true and a release already
+      exists for the given tag.
+    value: ${{ steps.create-release.outputs.skipped }}
+
+runs:
+  using: composite
+  steps:
+    - name: Create release
+      id: create-release
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        INPUT_TAG: ${{ inputs.tag }}
+        INPUT_RELEASE_NAME: ${{ inputs.release-name }}
+        INPUT_BODY: ${{ inputs.body }}
+        INPUT_DRAFT: ${{ inputs.draft }}
+        INPUT_PRERELEASE: ${{ inputs.prerelease }}
+        INPUT_TARGET_COMMITISH: ${{ inputs.target-commitish }}
+        INPUT_NOTES_FORMAT: ${{ inputs.notes-format }}
+        INPUT_FROM_TAG: ${{ inputs.from-tag }}
+        INPUT_TO_TAG: ${{ inputs.to-tag }}
+        INPUT_ASSET_PATHS: ${{ inputs.asset-paths }}
+        INPUT_SKIP_IF_RELEASE_EXISTS: ${{ inputs.skip-if-release-exists }}
+        INPUT_PATH_FILTER: ${{ inputs.path-filter }}
+        INPUT_TAG_PREFIX: ${{ inputs.tag-prefix }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        INPUT_MOVE_MAJOR_TAG: ${{ inputs.move-major-tag }}
+        INPUT_MOVE_MINOR_TAG: ${{ inputs.move-minor-tag }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: bash "${{ github.action_path }}/scripts/create-release.sh"
