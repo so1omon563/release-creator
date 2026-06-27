@@ -11,13 +11,13 @@ body:
         **This action creates GitHub Releases with auto-generated release notes from
         conventional commit history. That is all it does.**
 
-        Please read the [Project Scope](https://github.com/so1omon563/sharedactions-action-release-creator#project-scope)
+        Please read the [Project Scope](https://github.com/so1omon563/release-creator#project-scope)
         section of the README before submitting. Requests that fall outside the defined scope
         will be closed without merging.
 
         If you need Git tag creation or semver bumping, that is not in scope for this
-        action — use [sharedactions-action-custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper)
-        instead. See the [Feature Request Policy](https://github.com/so1omon563/sharedactions-action-release-creator/blob/main/CONTRIBUTING.md#feature-request-policy)
+        action — use [custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper)
+        instead. See the [Feature Request Policy](https://github.com/so1omon563/release-creator/blob/main/CONTRIBUTING.md#feature-request-policy)
         in CONTRIBUTING.md for more guidance.
 
   - type: checkboxes
@@ -28,7 +28,7 @@ body:
         Confirm you have read the Project Scope section before submitting this request.
       options:
         - label: >
-            I have read the [Project Scope](https://github.com/so1omon563/sharedactions-action-release-creator#project-scope)
+            I have read the [Project Scope](https://github.com/so1omon563/release-creator#project-scope)
             section of the README and confirmed this request is about GitHub Release creation,
             release note generation, or the inputs/outputs that control them — not about
             Git tag creation, deployment, or manifest updates.

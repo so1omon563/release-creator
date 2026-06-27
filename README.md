@@ -1,12 +1,12 @@
 # Release Creator
 
-[![Test](https://github.com/so1omon563/sharedactions-action-release-creator/actions/workflows/test.yml/badge.svg)](https://github.com/so1omon563/sharedactions-action-release-creator/actions/workflows/test.yml)
-[![Coverage](https://img.shields.io/badge/coverage-0%25-red)](https://github.com/so1omon563/sharedactions-action-release-creator/actions/workflows/test.yml)
+[![Test](https://github.com/so1omon563/release-creator/actions/workflows/test.yml/badge.svg)](https://github.com/so1omon563/release-creator/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/coverage-0%25-red)](https://github.com/so1omon563/release-creator/actions/workflows/test.yml)
 
 A composite GitHub Action that creates GitHub Releases with auto-generated release notes
 from conventional commit history. Works standalone (on tag push or manual dispatch) or
 chained with
-[sharedactions-action-custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper).
+[custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper).
 
 ## Table of Contents
 
@@ -69,7 +69,7 @@ The following will never be added to this action. They belong in separate toolin
 
 - **Semver auto-incrementing** — reading commit history to determine the next version
   number (`v1.2.3 → v1.2.4`) and pushing a new tag is the responsibility of
-  [sharedactions-action-custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper).
+  [custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper).
   This action accepts whatever tag you give it; it does not compute version numbers.
 - **Deployment or publishing artifacts**
 - **Version manifest updates** — updating `package.json`, `pyproject.toml`, or similar
@@ -84,7 +84,7 @@ that already exists, or a new one that this action will create when it runs. Wha
 choose to name that tag, and how you increment it, is entirely your concern.
 
 If you want automatic version number computation based on commit messages, compose this
-action with [sharedactions-action-custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper)
+action with [custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper)
 upstream in your workflow. If you manage version numbers yourself (manually, via a script,
 or from a CI pipeline), pass the tag directly — no dependency on the bumper required.
 
@@ -109,7 +109,7 @@ release notes and optional assets — at an **explicit, intentional point in you
 
 - You only need a Git tag — no GitHub Release entry, no release notes, no assets.
   In that case, use `git tag` directly or
-  [sharedactions-action-custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper).
+  [custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper).
 - You want every merge to `main` to be automatically tagged and versioned, even when
   no explicit release is intended. That is a tagging automation concern; use the
   semver bumper for it.
@@ -120,7 +120,7 @@ release notes and optional assets — at an **explicit, intentional point in you
 > **In short:** if you already know the version and want to publish a release, this
 > action is for you. If you need something to decide what the next version should be,
 > pair it with (or replace it with)
-> [sharedactions-action-custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper).
+> [custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper).
 
 ## Quick Start
 
@@ -142,7 +142,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: so1omon563/sharedactions-action-release-creator@v1
+      - uses: so1omon563/release-creator@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -168,7 +168,7 @@ jobs:
 
       - name: Create release
         if: steps.bump.outputs.skipped == 'false'
-        uses: so1omon563/sharedactions-action-release-creator@v1
+        uses: so1omon563/release-creator@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.bump.outputs.new_version }}
@@ -260,7 +260,7 @@ jobs:
       - name: Create release
         # Skip if the bumper was told to skip (e.g. commit message contains #skip)
         if: steps.bump.outputs.skipped == 'false'
-        uses: so1omon563/sharedactions-action-release-creator@v1
+        uses: so1omon563/release-creator@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.bump.outputs.new_version }}
@@ -290,7 +290,7 @@ jobs:
 ```yaml
 - name: Create release
   if: steps.bump.outputs.skipped == 'false'
-  uses: so1omon563/sharedactions-action-release-creator@v1
+  uses: so1omon563/release-creator@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: ${{ steps.bump.outputs.new_version }}
@@ -324,7 +324,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: so1omon563/sharedactions-action-release-creator@v1
+      - uses: so1omon563/release-creator@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
@@ -361,7 +361,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: so1omon563/sharedactions-action-release-creator@v1
+      - uses: so1omon563/release-creator@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ inputs.tag }}
@@ -374,7 +374,7 @@ jobs:
 ```yaml
 - name: Create release
   id: release
-  uses: so1omon563/sharedactions-action-release-creator@v1
+  uses: so1omon563/release-creator@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: v1.0.0
@@ -468,7 +468,7 @@ Use `path-filter` to scope release notes to commits that touch files under a spe
 directory:
 
 ```yaml
-- uses: so1omon563/sharedactions-action-release-creator@v1
+- uses: so1omon563/release-creator@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: services/auth/v2.1.0
@@ -486,7 +486,7 @@ Actions consumers who pin to `@v1` and want to receive patch updates automatical
 Enable them with `move-major-tag` and/or `move-minor-tag`:
 
 ```yaml
-- uses: so1omon563/sharedactions-action-release-creator@v1
+- uses: so1omon563/release-creator@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: v1.3.2
@@ -499,7 +499,7 @@ Both inputs are **skipped automatically for pre-release tags** (any tag with a S
 pre-release identifier, e.g. `-rc.1`). Floating pointer tags must only reference stable
 commits — moving `v1` to a `-rc.1` commit would break consumers who pin to `@v1`.
 
-**When using with [`sharedactions-action-custom-semver-bumper`](https://github.com/so1omon563/custom-semver-bumper):**
+**When using with [`custom-semver-bumper`](https://github.com/so1omon563/custom-semver-bumper):**
 Always set `move-major-tag` / `move-minor-tag` here in the release creator, **not** on
 the bumper. The bumper creates a tag on every merge — you only want floating pointer tags
 to advance when a release is intentionally published. Do not set `move_major_tag` or
@@ -510,7 +510,7 @@ to advance when a release is intentionally published. Do not set `move_major_tag
 Provide newline-separated glob patterns to attach files to the release:
 
 ```yaml
-- uses: so1omon563/sharedactions-action-release-creator@v1
+- uses: so1omon563/release-creator@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: v1.0.0
@@ -523,7 +523,7 @@ Provide newline-separated glob patterns to attach files to the release:
 
 ## Chaining with the Semver Bumper
 
-When you use [`sharedactions-action-custom-semver-bumper`](https://github.com/so1omon563/custom-semver-bumper)
+When you use [`custom-semver-bumper`](https://github.com/so1omon563/custom-semver-bumper)
 to auto-tag every PR merge, you can trigger a GitHub Release from the same workflow run
 by including a release marker in the PR title or body.
 
@@ -587,7 +587,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: so1omon563/sharedactions-action-release-creator@v1
+      - uses: so1omon563/release-creator@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ needs.bump-version.outputs.new_tag }}

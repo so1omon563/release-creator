@@ -12,7 +12,7 @@
 #
 # Exit code 0 = pre-release, exit code 1 = stable release.
 #
-# Alignment note (sharedactions-action-custom-semver-bumper):
+# Alignment note (custom-semver-bumper):
 #   The semver bumper supports arbitrary pre-release suffixes (e.g. enterprise,
 #   team-blue, nightly) and SemVer §10 build metadata (e.g. +sha.a1b2c3d).
 #   This script follows SemVer §9: any hyphen-separated label after the numeric

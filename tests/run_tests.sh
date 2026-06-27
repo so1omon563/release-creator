@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/run_tests.sh — Primary test entry point for sharedactions-action-release-creator
+# tests/run_tests.sh — Primary test entry point for release-creator
 #
 # Usage:
 #   ./run_tests.sh              # Run all suites

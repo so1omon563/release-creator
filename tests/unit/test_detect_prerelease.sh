@@ -44,7 +44,7 @@ check "next suffix"        "true" "$(is_prerelease "v2.0.0-next")"
 check "nightly suffix"     "true" "$(is_prerelease "v1.0.0-nightly")"
 
 # ── Arbitrary SemVer §9 pre-release identifiers → true ──────────────────────
-# sharedactions-action-custom-semver-bumper supports custom allowed_prerelease_suffixes
+# custom-semver-bumper supports custom allowed_prerelease_suffixes
 # (e.g. enterprise, team-blue, canary). Any hyphenated identifier is SemVer pre-release.
 check "arbitrary identifier"         "true" "$(is_prerelease "v1.2.3-enterprise.1")"
 check "hyphenated identifier"        "true" "$(is_prerelease "v1.2.3-team-blue.3")"

@@ -1,4 +1,4 @@
-# Makefile for sharedactions-action-release-creator
+# Makefile for release-creator
 # Run `make help` for available targets.
 
 SHELL := /usr/bin/env bash

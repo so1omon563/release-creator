@@ -4,7 +4,7 @@
 #
 # Drop this file into .github/workflows/ in any repository that uses both:
 #   - so1omon563/custom-semver-bumper
-#   - so1omon563/sharedactions-action-release-creator
+#   - so1omon563/release-creator
 #
 # HOW IT WORKS
 # ------------
@@ -91,7 +91,7 @@ jobs:
           fetch-depth: 0
 
       - name: Create GitHub Release
-        uses: so1omon563/sharedactions-action-release-creator@v1
+        uses: so1omon563/release-creator@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ needs.bump-version.outputs.new_tag }}
