@@ -1,4 +1,4 @@
-# Contributing to sharedactions-action-release-creator
+# Contributing to release-creator
 
 Thank you for contributing to this project. This guide covers how to get started,
 our development standards, and the process for submitting changes.
@@ -30,11 +30,11 @@ then clone your fork:
 
 ```bash
 # Clone YOUR fork (replace <your-username>)
-git clone https://github.com/<your-username>/sharedactions-action-release-creator.git
-cd sharedactions-action-release-creator
+git clone https://github.com/<your-username>/release-creator.git
+cd release-creator
 
 # Add the upstream remote so you can sync with the original repo
-git remote add upstream https://github.com/so1omon563/sharedactions-action-release-creator.git
+git remote add upstream https://github.com/so1omon563/release-creator.git
 
 # Make test scripts executable (run once after cloning)
 make setup
@@ -47,8 +47,8 @@ Development Workflow below.
 
 ```bash
 # Clone the repository
-git clone https://github.com/so1omon563/sharedactions-action-release-creator.git
-cd sharedactions-action-release-creator
+git clone https://github.com/so1omon563/release-creator.git
+cd release-creator
 
 # Make test scripts executable (run once after cloning)
 make setup
@@ -65,20 +65,20 @@ If you are not a repository maintainer, follow these steps to contribute:
 
 **1. Fork the repository**
 
-Click **Fork** on the [repository page](https://github.com/so1omon563/sharedactions-action-release-creator)
+Click **Fork** on the [repository page](https://github.com/so1omon563/release-creator)
 to create your own copy under your GitHub account.
 
 **2. Clone your fork**
 
 ```bash
-git clone https://github.com/<your-username>/sharedactions-action-release-creator.git
-cd sharedactions-action-release-creator
+git clone https://github.com/<your-username>/release-creator.git
+cd release-creator
 ```
 
 **3. Add the upstream remote**
 
 ```bash
-git remote add upstream https://github.com/so1omon563/sharedactions-action-release-creator.git
+git remote add upstream https://github.com/so1omon563/release-creator.git
 ```
 
 **4. Create a feature branch**
@@ -242,7 +242,7 @@ If you add a new code path to any script in `scripts/`, add a corresponding BATS
 3. Link any related issue references (e.g., `#123`)
 4. Run `make test-all` and confirm it passes
 5. Run `make shellcheck` and confirm it passes
-6. Request review from a team member
+6. Request review from a maintainer
 
 PRs that do not pass CI checks will not be merged.
 
@@ -292,7 +292,7 @@ after they are published, it is out of scope.
 Examples of out-of-scope requests (will be closed):
 
 - **Semver auto-incrementing** — computing `v1.2.3 → v1.2.4` from commit history; use
-  [sharedactions-action-custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper)
+  [custom-semver-bumper](https://github.com/so1omon563/custom-semver-bumper)
   for this
 - Publishing to package registries or deploying to environments
 - Updating `package.json`, `pyproject.toml`, or other version manifest files
@@ -303,20 +303,20 @@ Examples of out-of-scope requests (will be closed):
 
 - **[`gh release create`][gh-cli]** — GitHub CLI for one-off release creation
 - **[GitHub Releases API][gh-releases]** — REST API for programmatic release management
-- **[sharedactions-action-custom-semver-bumper][semver-bumper]** — semver auto-incrementing and tag creation
+- **[custom-semver-bumper][semver-bumper]** — semver auto-incrementing and tag creation
 
-[scope]: https://github.com/so1omon563/sharedactions-action-release-creator#project-scope
+[scope]: https://github.com/so1omon563/release-creator#project-scope
 [gh-cli]: https://cli.github.com/manual/gh_release
 [gh-releases]: https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository
 [semver-bumper]: https://github.com/so1omon563/custom-semver-bumper
 
 ## Reporting Issues
 
-Open a [GitHub Issue](https://github.com/so1omon563/sharedactions-action-release-creator/issues)
+Open a [GitHub Issue](https://github.com/so1omon563/release-creator/issues)
 to report bugs or request features.
 
 For security vulnerabilities, open a
-[private security advisory](https://github.com/so1omon563/sharedactions-action-release-creator/security/advisories/new)
+[private security advisory](https://github.com/so1omon563/release-creator/security/advisories/new)
 rather than a public issue.
 
 ## Questions and Support

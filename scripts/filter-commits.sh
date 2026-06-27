@@ -11,7 +11,7 @@
 #
 # Output: newline-separated list of "<sha> <subject>" lines.
 #
-# Alignment note (sharedactions-action-custom-semver-bumper):
+# Alignment note (custom-semver-bumper):
 #   The semver bumper can produce tags with SemVer §10 build metadata, e.g.
 #   v1.3.0+sha.a1b2c3d. Git allows the '+' character in tag names, so
 #   "git log v1.2.0..v1.3.0+sha.a1b2c3d" is valid. However, git describe does

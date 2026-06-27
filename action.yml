@@ -2,7 +2,7 @@ name: Release Creator
 description: >-
   Creates a GitHub Release with auto-generated release notes from conventional
   commit history. Supports grouped, conventional, flat, and GitHub-native note
-  formats. Works standalone or chained with sharedactions-action-custom-semver-bumper.
+  formats. Works standalone or chained with custom-semver-bumper.
 
 inputs:
   tag:
@@ -103,7 +103,7 @@ inputs:
     description: >-
       Prefix to strip when comparing version numbers (e.g. v for tags like
       v1.2.3). Used during pre-release auto-detection and version comparisons.
-      When chaining with sharedactions-action-custom-semver-bumper, set this
+      When chaining with custom-semver-bumper, set this
       to match the bumper's tag_prefix input (default: v).
     required: false
     default: ''

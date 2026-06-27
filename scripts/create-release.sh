@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/create-release.sh
-# Orchestrate GitHub Release creation for the sharedactions-action-release-creator
+# Orchestrate GitHub Release creation for the release-creator
 # composite action.
 #
 # All inputs are read from environment variables (GitHub Actions convention):
