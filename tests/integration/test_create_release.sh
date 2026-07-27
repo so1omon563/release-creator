@@ -128,6 +128,10 @@ case "${1:-}" in
       echo "main"
       exit 0
     fi
+    if [[ "${2:-}" == "repos/{owner}/{repo}/commits/"* ]]; then
+      printf '%s\n' "${MOCK_TARGET_SHA:-$(git rev-parse HEAD)}"
+      exit 0
+    fi
     if [[ "${*}" == *"/releases/generate-notes"* ]]; then
       if [[ "${MOCK_NATIVE_NOTES_FAIL:-false}" == "true" ]]; then
         echo "release notes generation failed" >&2
@@ -446,7 +450,7 @@ INPUT_BODY="My hand-written release notes." \
 INPUT_DRAFT="false" \
 INPUT_PRERELEASE="false" \
 INPUT_TARGET_COMMITISH="" \
-INPUT_NOTES_FORMAT="grouped" \
+INPUT_NOTES_FORMAT="github-native" \
 INPUT_FROM_TAG="" \
 INPUT_TO_TAG="" \
 INPUT_ASSET_PATHS="" \
@@ -458,6 +462,10 @@ bash "${REPO_ROOT}/scripts/create-release.sh"
 
 check_contains "explicit-body: --notes flag in gh args"      "--notes"                       "$(cat "${CALL_LOG}")"
 check_contains "explicit-body: body content passed to gh"    "My hand-written release notes" "$(cat "${CALL_LOG}")"
+check_not_contains "explicit-body: native preview skipped" \
+  "releases/generate-notes" "$(cat "${CALL_LOG}")"
+check_not_contains "explicit-body: empty target not passed" \
+  "--target" "$(cat "${CALL_LOG}")"
 
 # ── Test 13: set_output fallback to stdout when GITHUB_OUTPUT unset ──────
 stdout_output="$(
@@ -620,6 +628,7 @@ unset MOCK_PREVIOUS_RELEASE_TAG
 # ── Test 19: github-native forwards explicit from-tag ──────────────────────
 : > "${CALL_LOG}"
 : > "${GITHUB_OUTPUT}"
+native_existing_tag_sha="$(git rev-parse 'v0.2.0^{commit}')"
 
 INPUT_TAG="v0.2.0" \
 INPUT_RELEASE_NAME="" \
@@ -642,12 +651,46 @@ check_contains "github-native: preview endpoint called" \
   "repos/{owner}/{repo}/releases/generate-notes" "${native_call}"
 check_contains "github-native: previous tag forwarded" \
   "previous_tag_name=v0.1.0" "${native_call}"
-check_contains "github-native: default branch forwarded" \
-  "target_commitish=main" "${native_call}"
+check_contains "github-native: existing tag commit forwarded" \
+  "target_commitish=${native_existing_tag_sha}" "${native_call}"
 check_contains "github-native: generated body passed to release" \
   "--notes Generated GitHub-native notes" "${native_call}"
 check_not_contains "github-native: server-side generation disabled" \
   "--generate-notes" "${native_call}"
+
+# ── Test 19b: new native tag pins ancestry, notes, and creation to one SHA
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+export MOCK_RELEASE_TAGS="v0.1.0"
+MOCK_TARGET_SHA="$(git rev-parse HEAD)"
+export MOCK_TARGET_SHA
+
+new_native_output="$(
+  INPUT_TAG="v9.0.0" \
+  INPUT_RELEASE_NAME="" \
+  INPUT_BODY="" \
+  INPUT_DRAFT="false" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="" \
+  INPUT_NOTES_FORMAT="github-native" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_ASSET_PATHS="" \
+  INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+  INPUT_PATH_FILTER="" \
+  INPUT_TAG_PREFIX="v" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)"
+
+new_native_call="$(cat "${CALL_LOG}")"
+check_contains "github-native-new-tag: previous ancestor selected" \
+  "Using previous published release as from-tag: v0.1.0" "${new_native_output}"
+check_contains "github-native-new-tag: notes pinned to target SHA" \
+  "target_commitish=${MOCK_TARGET_SHA}" "${new_native_call}"
+check_contains "github-native-new-tag: release pinned to target SHA" \
+  "--target ${MOCK_TARGET_SHA}" "${new_native_call}"
+unset MOCK_RELEASE_TAGS MOCK_TARGET_SHA
 
 # ── Test 20: github-native rejects a different to-tag ──────────────────────
 : > "${CALL_LOG}"

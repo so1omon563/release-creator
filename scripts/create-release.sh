@@ -102,6 +102,28 @@ if [[ -z "${TO_TAG}" ]]; then
   TO_TAG="${TAG}"
 fi
 
+# GitHub-native notes and a newly created tag must resolve the same immutable
+# endpoint. Existing tags ignore target-commitish, but the API still accepts
+# their commit SHA.
+NATIVE_TARGET_SHA=""
+NATIVE_TAG_EXISTS_LOCALLY="false"
+if [[ -z "${BODY}" && "${NOTES_FORMAT}" == "github-native" ]]; then
+  if NATIVE_TARGET_SHA="$(git rev-parse --verify "refs/tags/${TAG}^{commit}" 2>/dev/null)"; then
+    NATIVE_TAG_EXISTS_LOCALLY="true"
+  else
+    native_target_ref="${TARGET_COMMITISH}"
+    if [[ -z "${native_target_ref}" ]]; then
+      if ! native_target_ref="$(gh api "repos/{owner}/{repo}" --jq '.default_branch')"; then
+        die "Could not determine the repository default branch for GitHub-native release notes."
+      fi
+    fi
+    native_target_ref="${native_target_ref//\//%2F}"
+    if ! NATIVE_TARGET_SHA="$(gh api "repos/{owner}/{repo}/commits/${native_target_ref}" --jq '.sha')"; then
+      die "Could not resolve target-commitish to a commit for GitHub-native release notes."
+    fi
+  fi
+fi
+
 # ── Resolve FROM_TAG ─────────────────────────────────────────────────────────
 if [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
   if ! release_tags="$(gh release list --exclude-drafts --limit 1000 \
@@ -119,11 +141,17 @@ if [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
 
     if [[ -z "${to_commit}" ]]; then
       if ! to_commit="$(git rev-parse --verify "${TO_TAG}^{commit}" 2>/dev/null)"; then
-        die "Cannot infer from-tag because to-tag ${TO_TAG} is not available locally. Fetch full history and tags with actions/checkout fetch-depth: 0, or set from-tag explicitly."
+        if [[ "${NOTES_FORMAT}" == "github-native" &&
+              "${TO_TAG}" == "${TAG}" &&
+              -n "${NATIVE_TARGET_SHA}" ]]; then
+          to_commit="${NATIVE_TARGET_SHA}"
+        else
+          die "Cannot infer from-tag because to-tag ${TO_TAG} is not available locally. Fetch full history and tags with actions/checkout fetch-depth: 0, or set from-tag explicitly."
+        fi
       fi
     fi
 
-    if ! release_commit="$(git rev-parse --verify "${release_tag}^{commit}" 2>/dev/null)"; then
+    if ! release_commit="$(git rev-parse --verify "refs/tags/${release_tag}^{commit}" 2>/dev/null)"; then
       die "Published release tag ${release_tag} is not available locally. Fetch full history and tags with actions/checkout fetch-depth: 0, or set from-tag explicitly."
     fi
 
@@ -164,13 +192,7 @@ if [[ -z "${BODY}" ]]; then
       "repos/{owner}/{repo}/releases/generate-notes"
       "-f" "tag_name=${TAG}"
     )
-    native_target_commitish="${TARGET_COMMITISH}"
-    if [[ -z "${native_target_commitish}" ]]; then
-      if ! native_target_commitish="$(gh api "repos/{owner}/{repo}" --jq '.default_branch')"; then
-        die "Could not determine the repository default branch for GitHub-native release notes."
-      fi
-    fi
-    GENERATE_NOTES_ARGS+=("-f" "target_commitish=${native_target_commitish}")
+    GENERATE_NOTES_ARGS+=("-f" "target_commitish=${NATIVE_TARGET_SHA}")
     if [[ -n "${FROM_TAG}" ]]; then
       GENERATE_NOTES_ARGS+=("-f" "previous_tag_name=${FROM_TAG}")
     fi
@@ -207,7 +229,10 @@ if [[ "${PRERELEASE}" == "true" ]]; then
   GH_ARGS+=("--prerelease")
 fi
 
-if [[ -n "${TARGET_COMMITISH}" ]]; then
+if [[ -n "${NATIVE_TARGET_SHA}" &&
+      "${NATIVE_TAG_EXISTS_LOCALLY}" == "false" ]]; then
+  GH_ARGS+=("--target" "${NATIVE_TARGET_SHA}")
+elif [[ -n "${TARGET_COMMITISH}" ]]; then
   GH_ARGS+=("--target" "${TARGET_COMMITISH}")
 fi
 
