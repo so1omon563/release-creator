@@ -57,22 +57,23 @@ coverage: setup ## Measure script coverage with kcov (requires kcov + bats, Linu
 		|| { echo "bats not found. Install: brew install bats-core"; exit 1; }
 	@echo "Running kcov coverage (threshold: $(COVERAGE_THRESHOLD)%)..."
 	@rm -rf coverage/
-	@# Each BATS test invocation wraps script calls via tests/run-script.sh.
-	@# This lets kcov instrument each subprocess without bats clearing BASH_ENV.
+	@# Both suites wrap production scripts via tests/run-script.sh.
+	@COVERAGE_DIR=$(CURDIR)/coverage bash tests/integration/test_create_release.sh
 	@COVERAGE_DIR=$(CURDIR)/coverage bats tests/bats/release.bats
 	@echo "Coverage report: coverage/ (open coverage/*/index.html in a browser)"
-	@COVERAGE=$$(find coverage -name 'cobertura.xml' 2>/dev/null \
-		| xargs -r grep -l 'generate-notes' 2>/dev/null \
-		| head -1 \
-		| xargs -r grep -oP 'line-rate="\K[0-9.]+' 2>/dev/null \
+	@grep -q 'create-release.sh' coverage/kcov-merged/cobertura.xml \
+		|| { echo "Coverage report does not include scripts/create-release.sh"; exit 1; }
+	@COVERAGE=$$(grep -oP 'line-rate="\K[0-9.]+' coverage/kcov-merged/cobertura.xml 2>/dev/null \
 		| head -1 \
 		| awk '{printf "%d", $$1 * 100}'); \
 	if [ -z "$$COVERAGE" ]; then \
-		echo "Warning: could not determine coverage percentage from cobertura.xml"; \
+		echo "Could not determine coverage percentage from coverage/kcov-merged/cobertura.xml"; \
+		exit 1; \
 	elif [ "$$COVERAGE" -lt "$(COVERAGE_THRESHOLD)" ]; then \
 		echo "Coverage $$COVERAGE% is below threshold $(COVERAGE_THRESHOLD)% — failing"; \
 		exit 1; \
 	else \
+		printf '%s\n' "$$COVERAGE" > coverage/percentage.txt; \
 		echo "Coverage $$COVERAGE% meets threshold $(COVERAGE_THRESHOLD)%"; \
 	fi
 

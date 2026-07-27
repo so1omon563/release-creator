@@ -1,7 +1,7 @@
 # Release Creator
 
 [![Test](https://github.com/so1omon563/release-creator/actions/workflows/test.yml/badge.svg)](https://github.com/so1omon563/release-creator/actions/workflows/test.yml)
-[![Coverage](https://img.shields.io/badge/coverage-0%25-red)](https://github.com/so1omon563/release-creator/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)](https://github.com/so1omon563/release-creator/actions/workflows/test.yml)
 
 A composite GitHub Action that creates GitHub Releases with auto-generated release notes
 from conventional commit history. Works standalone (on tag push or manual dispatch) or
