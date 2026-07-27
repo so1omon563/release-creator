@@ -1,8 +1,11 @@
-name: Release Creator
+name: Conventional Release Creator
 description: >-
-  Creates a GitHub Release with auto-generated release notes from conventional
-  commit history. Supports grouped, conventional, flat, and GitHub-native note
-  formats. Works standalone or chained with custom-semver-bumper.
+  Creates GitHub Releases with conventional-commit notes, path filters, assets,
+  and prerelease detection.
+
+branding:
+  icon: package
+  color: blue
 
 inputs:
   tag:
