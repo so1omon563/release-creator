@@ -34,6 +34,7 @@ chained with
   - [Monorepo Support](#monorepo-support)
   - [Moving Floating Pointer Tags](#moving-floating-pointer-tags)
   - [Asset Upload](#asset-upload)
+  - [Publishing Your Action to GitHub Marketplace](#publishing-your-action-to-github-marketplace)
   - [Chaining with the Semver Bumper](#chaining-with-the-semver-bumper)
   - [Development](#development)
     - [Release Process](#release-process)
@@ -142,7 +143,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: so1omon563/release-creator@v1
+      - uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -168,7 +169,7 @@ jobs:
 
       - name: Create release
         if: steps.bump.outputs.skipped == 'false'
-        uses: so1omon563/release-creator@v1
+        uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.bump.outputs.new_version }}
@@ -184,7 +185,8 @@ jobs:
 
 1. Reads the tag input (or infers it from `github.ref_name` on tag-push triggers)
 2. Resolves the commit range (`from-tag` to `to-tag`), using the latest published GitHub
-   Release matching `tag-prefix` as `from-tag` when omitted (or full history when none exists)
+   Release matching `tag-prefix` that is a local ancestor of `to-tag` when omitted
+   (or full history when none exists)
 3. Filters commits in that range (excludes merge commits; optionally scopes to a path)
 4. Parses [Conventional Commits][cc-spec] to group by type
 5. Generates release notes in the requested format
@@ -212,7 +214,7 @@ jobs:
 | `prerelease` | — | `auto` | `true`, `false`, or `auto` (inspect tag — see [Pre-release Auto-detection](#pre-release-auto-detection)) |
 | `target-commitish` | — | `''` | Branch or SHA to tag from |
 | `notes-format` | — | `grouped` | `grouped`, `conventional`, `flat`, or `github-native` |
-| `from-tag` | — | latest published Release | Start of commit range for notes (exclusive); constrained by `tag-prefix`; full history when no matching Release exists |
+| `from-tag` | — | latest published ancestor | Start of commit range for notes (exclusive); constrained by `tag-prefix` and local ancestry; full history when no matching Release exists |
 | `to-tag` | — | `tag` value | End of commit range for notes (inclusive); must equal `tag` with `github-native` |
 | `asset-paths` | — | `''` | Newline-separated glob patterns for assets to upload |
 | `skip-if-release-exists` | — | `false` | Exit successfully without error if release already exists |
@@ -262,7 +264,7 @@ jobs:
       - name: Create release
         # Skip if the bumper was told to skip (e.g. commit message contains #skip)
         if: steps.bump.outputs.skipped == 'false'
-        uses: so1omon563/release-creator@v1
+        uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.bump.outputs.new_version }}
@@ -292,7 +294,7 @@ jobs:
 ```yaml
 - name: Create release
   if: steps.bump.outputs.skipped == 'false'
-  uses: so1omon563/release-creator@v1
+  uses: so1omon563/release-creator@v2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: ${{ steps.bump.outputs.new_version }}
@@ -326,7 +328,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: so1omon563/release-creator@v1
+      - uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
@@ -363,7 +365,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: so1omon563/release-creator@v1
+      - uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ inputs.tag }}
@@ -376,7 +378,7 @@ jobs:
 ```yaml
 - name: Create release
   id: release
-  uses: so1omon563/release-creator@v1
+  uses: so1omon563/release-creator@v2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: v1.0.0
@@ -440,12 +442,12 @@ Plain descriptions with no type prefix:
 
 ### `github-native`
 
-Delegates entirely to GitHub's built-in release notes generator
-(`gh release create --generate-notes`). Useful when you prefer GitHub's
-default PR-based grouping. An explicit `from-tag` is forwarded as
-`--notes-start-tag`. Because GitHub generates notes for the release tag and
-does not support path filtering, `to-tag` must equal `tag` and `path-filter`
-cannot be used with this format.
+Uses GitHub's built-in release notes API. The action previews the generated body,
+validates GitHub's 125000-character limit, and then creates the release with the
+validated notes. An explicit `from-tag` is forwarded as the API's
+`previous_tag_name`. Because GitHub generates notes for the release tag and does
+not support path filtering, `to-tag` must equal `tag` and `path-filter` cannot be
+used with this format.
 
 ## Pre-release Auto-detection
 
@@ -473,7 +475,7 @@ Use `path-filter` to scope release notes to commits that touch files under a spe
 directory:
 
 ```yaml
-- uses: so1omon563/release-creator@v1
+- uses: so1omon563/release-creator@v2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: services/auth/v2.1.0
@@ -491,7 +493,7 @@ Actions consumers who pin to `@v1` and want to receive patch updates automatical
 Enable them with `move-major-tag` and/or `move-minor-tag`:
 
 ```yaml
-- uses: so1omon563/release-creator@v1
+- uses: so1omon563/release-creator@v2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: v1.3.2
@@ -515,7 +517,7 @@ to advance when a release is intentionally published. Do not set `move_major_tag
 Provide newline-separated glob patterns to attach files to the release:
 
 ```yaml
-- uses: so1omon563/release-creator@v1
+- uses: so1omon563/release-creator@v2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: v1.0.0
@@ -525,6 +527,35 @@ Provide newline-separated glob patterns to attach files to the release:
       dist/**/*.whl
       checksums.txt
 ```
+
+## Publishing Your Action to GitHub Marketplace
+
+This action creates a normal GitHub Release. GitHub Marketplace publication is a flag on
+that same release, so you do **not** need a separate Marketplace tag or release.
+
+Before publishing, ensure the action repository:
+
+- is public and contains one `action.yml` or `action.yaml` at its root;
+- uses a unique action `name` and a `description` no longer than 125 characters;
+- includes valid `branding` metadata; and
+- has accepted the GitHub Marketplace Developer Agreement.
+
+Then:
+
+1. Create the GitHub Release with this action. When using the semver-bumper workflow
+   below, include `#release` in the PR title or body.
+2. Open that release on GitHub and choose **Edit**.
+3. Select **Publish this Action to the GitHub Marketplace**, choose the primary and
+   optional secondary categories, and resolve any metadata validation errors.
+4. Choose **Update release** and complete GitHub's two-factor authentication prompt.
+
+Repeat the Marketplace step for each release that should appear as an available
+Marketplace version. The final checkbox and category selection are manual because the
+GitHub CLI and Releases API do not expose Marketplace publication controls.
+
+See GitHub's
+[Publishing actions in GitHub Marketplace](https://docs.github.com/en/actions/how-tos/create-and-publish-actions/publish-in-github-marketplace)
+guide for the current requirements.
 
 ## Chaining with the Semver Bumper
 
@@ -592,13 +623,13 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: so1omon563/release-creator@v1
+      - uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ needs.bump-version.outputs.new_tag }}
           tag-prefix: v
-          # from-tag omitted: use the latest published GitHub Release rather
-          # than an intervening tag-only bump.
+          # from-tag omitted: use the latest published ancestor rather than
+          # an intervening tag-only bump.
           notes-format: grouped
           move-major-tag: 'true'
           move-minor-tag: 'true'
