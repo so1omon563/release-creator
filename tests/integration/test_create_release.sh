@@ -653,6 +653,8 @@ check_contains "github-native: previous tag forwarded" \
   "previous_tag_name=v0.1.0" "${native_call}"
 check_contains "github-native: existing tag commit forwarded" \
   "target_commitish=${native_existing_tag_sha}" "${native_call}"
+check_contains "github-native: local tag pins remote creation" \
+  "--target ${native_existing_tag_sha}" "${native_call}"
 check_contains "github-native: generated body passed to release" \
   "--notes Generated GitHub-native notes" "${native_call}"
 check_not_contains "github-native: server-side generation disabled" \

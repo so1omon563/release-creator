@@ -106,11 +106,8 @@ fi
 # endpoint. Existing tags ignore target-commitish, but the API still accepts
 # their commit SHA.
 NATIVE_TARGET_SHA=""
-NATIVE_TAG_EXISTS_LOCALLY="false"
 if [[ -z "${BODY}" && "${NOTES_FORMAT}" == "github-native" ]]; then
-  if NATIVE_TARGET_SHA="$(git rev-parse --verify "refs/tags/${TAG}^{commit}" 2>/dev/null)"; then
-    NATIVE_TAG_EXISTS_LOCALLY="true"
-  else
+  if ! NATIVE_TARGET_SHA="$(git rev-parse --verify "refs/tags/${TAG}^{commit}" 2>/dev/null)"; then
     native_target_ref="${TARGET_COMMITISH}"
     if [[ -z "${native_target_ref}" ]]; then
       if ! native_target_ref="$(gh api "repos/{owner}/{repo}" --jq '.default_branch')"; then
@@ -237,8 +234,7 @@ if [[ "${PRERELEASE}" == "true" ]]; then
   GH_ARGS+=("--prerelease")
 fi
 
-if [[ -n "${NATIVE_TARGET_SHA}" &&
-      "${NATIVE_TAG_EXISTS_LOCALLY}" == "false" ]]; then
+if [[ -n "${NATIVE_TARGET_SHA}" ]]; then
   GH_ARGS+=("--target" "${NATIVE_TARGET_SHA}")
 elif [[ -n "${TARGET_COMMITISH}" ]]; then
   GH_ARGS+=("--target" "${TARGET_COMMITISH}")
