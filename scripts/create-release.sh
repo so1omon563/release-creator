@@ -104,10 +104,17 @@ fi
 
 # ── Resolve FROM_TAG ─────────────────────────────────────────────────────────
 if [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
-  if ! FROM_TAG="$(gh release list --exclude-drafts --limit 1 \
-      --json tagName --jq '.[0].tagName // ""')"; then
+  if ! release_tags="$(gh release list --exclude-drafts --limit 1000 \
+      --json tagName --jq '.[].tagName')"; then
     die "Could not determine the previous published release. Set from-tag explicitly."
   fi
+
+  while IFS= read -r release_tag; do
+    if [[ -z "${TAG_PREFIX}" || "${release_tag}" == "${TAG_PREFIX}"* ]]; then
+      FROM_TAG="${release_tag}"
+      break
+    fi
+  done <<< "${release_tags}"
 
   if [[ -n "${FROM_TAG}" ]]; then
     log "Using previous published release as from-tag: ${FROM_TAG}"

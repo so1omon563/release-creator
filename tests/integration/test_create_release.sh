@@ -102,7 +102,7 @@ case "${1:-}" in
         fi
         ;;
       list)
-        echo "${MOCK_PREVIOUS_RELEASE_TAG:-}"
+        printf '%s\n' "${MOCK_RELEASE_TAGS:-${MOCK_PREVIOUS_RELEASE_TAG:-}}"
         exit 0
         ;;
       create)
@@ -710,6 +710,41 @@ check "oversized-generated-body: exits non-zero" "1" "${exit_code}"
 check_contains "oversized-generated-body: actionable error" \
   "GitHub allows at most 125000" "${oversized_generated_output}"
 check "oversized-generated-body: gh create not called" "" "$(cat "${CALL_LOG}")"
+
+# ── Test 24: inferred release stays within the configured tag prefix ──────
+mkdir -p api web
+git tag api/v1.0.0
+echo "endpoint" > api/endpoint.txt
+git add api/endpoint.txt
+git commit -q -m "feat(api): add endpoint"
+echo "release" > web/release.txt
+git add web/release.txt
+git commit -q -m "chore(web): publish release"
+git tag web/v2.0.0
+git tag api/v2.0.0
+
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+export MOCK_RELEASE_TAGS=$'web/v2.0.0\napi/v1.0.0'
+
+interleaved_output="$(
+  INPUT_TAG="api/v2.0.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="flat" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_PATH_FILTER="api" \
+  INPUT_TAG_PREFIX="api/" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)"
+
+check_contains "interleaved-releases: matching stream selected" \
+  "Using previous published release as from-tag: api/v1.0.0" "${interleaved_output}"
+check_contains "interleaved-releases: component commit retained" \
+  "add endpoint" "$(cat "${CALL_LOG}")"
+unset MOCK_RELEASE_TAGS
 
 echo ""
 echo "integration: ${PASS} passed, ${FAIL} failed"

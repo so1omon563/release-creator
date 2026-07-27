@@ -184,7 +184,7 @@ jobs:
 
 1. Reads the tag input (or infers it from `github.ref_name` on tag-push triggers)
 2. Resolves the commit range (`from-tag` to `to-tag`), using the latest published GitHub
-   Release as `from-tag` when omitted (or full history when no Release exists)
+   Release matching `tag-prefix` as `from-tag` when omitted (or full history when none exists)
 3. Filters commits in that range (excludes merge commits; optionally scopes to a path)
 4. Parses [Conventional Commits][cc-spec] to group by type
 5. Generates release notes in the requested format
@@ -212,12 +212,12 @@ jobs:
 | `prerelease` | — | `auto` | `true`, `false`, or `auto` (inspect tag — see [Pre-release Auto-detection](#pre-release-auto-detection)) |
 | `target-commitish` | — | `''` | Branch or SHA to tag from |
 | `notes-format` | — | `grouped` | `grouped`, `conventional`, `flat`, or `github-native` |
-| `from-tag` | — | latest published Release | Start of commit range for notes (exclusive); full history when no Release exists |
+| `from-tag` | — | latest published Release | Start of commit range for notes (exclusive); constrained by `tag-prefix`; full history when no matching Release exists |
 | `to-tag` | — | `tag` value | End of commit range for notes (inclusive); must equal `tag` with `github-native` |
 | `asset-paths` | — | `''` | Newline-separated glob patterns for assets to upload |
 | `skip-if-release-exists` | — | `false` | Exit successfully without error if release already exists |
 | `path-filter` | — | `''` | Scope custom-format notes to commits touching this path; unsupported with `github-native` |
-| `tag-prefix` | — | `''` | Prefix to strip for version comparisons (e.g. `v`). Match this to `tag_prefix` in the semver bumper when chaining. |
+| `tag-prefix` | — | `''` | Prefix for version comparisons and automatic `from-tag` selection (e.g. `services/auth/`). Match this to `tag_prefix` in the semver bumper when chaining. |
 | `fail-on-error` | — | `true` | Fail the step on error; `false` logs and exits cleanly |
 | `move-major-tag` | — | `false` | Move the major floating pointer tag (e.g. `v1`) to the release commit. Skipped automatically for pre-releases. |
 | `move-minor-tag` | — | `false` | Move the minor floating pointer tag (e.g. `v1.3`) to the release commit. Skipped automatically for pre-releases. |

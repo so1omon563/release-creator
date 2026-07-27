@@ -68,7 +68,8 @@ inputs:
     description: >-
       Start of the commit range used for release note generation (exclusive).
       Typically the previous published release tag. When omitted, the action
-      uses the latest published GitHub Release, or full history when none exists.
+      uses the latest published GitHub Release matching tag-prefix, or full
+      history when none exists.
     required: false
     default: ''
 
@@ -105,9 +106,9 @@ inputs:
   tag-prefix:
     description: >-
       Prefix to strip when comparing version numbers (e.g. v for tags like
-      v1.2.3). Used during pre-release auto-detection and version comparisons.
-      When chaining with custom-semver-bumper, set this
-      to match the bumper's tag_prefix input (default: v).
+      v1.2.3). Also limits automatic from-tag selection to the same release
+      stream. When chaining with custom-semver-bumper, set this to match the
+      bumper's tag_prefix input (default: v).
     required: false
     default: ''
 
