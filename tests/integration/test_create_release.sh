@@ -158,6 +158,10 @@ export GH_TOKEN="test-token"
 export GITHUB_OUTPUT="${TMPDIR}/github_output.txt"
 export ACTION_PATH="${REPO_ROOT}"
 
+run_create_release() {
+  "${REPO_ROOT}/tests/run-script.sh" "${REPO_ROOT}/scripts/create-release.sh"
+}
+
 echo "--- integration: create-release ---"
 
 # ── Test 1: Basic release creation ───────────────────────────────────────
@@ -178,7 +182,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 output_content="$(cat "${GITHUB_OUTPUT}")"
 check_contains "basic: created=true in output"   "created"    "${output_content}"
@@ -204,7 +208,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 gh_call="$(cat "${CALL_LOG}")"
 check_contains "prerelease: --prerelease flag passed" "--prerelease" "${gh_call}"
@@ -227,7 +231,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="true" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 skip_output="$(cat "${GITHUB_OUTPUT}")"
 check_contains "skip: skipped=true in output"  "skipped" "${skip_output}"
@@ -256,7 +260,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="false" \
-bash "${REPO_ROOT}/scripts/create-release.sh" || true
+run_create_release || true
 
 soft_fail_output="$(cat "${GITHUB_OUTPUT}")"
 check_contains "soft-fail: created=false" "false" "${soft_fail_output}"
@@ -279,7 +283,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 check_contains "prerelease=true: --prerelease flag present" "--prerelease" "$(cat "${CALL_LOG}")"
 
@@ -300,7 +304,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 check_not_contains "prerelease=false: no --prerelease flag" "--prerelease" "$(cat "${CALL_LOG}")"
 
@@ -321,7 +325,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 check_contains "draft=true: --draft flag present" "--draft" "$(cat "${CALL_LOG}")"
 
@@ -342,7 +346,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 check_contains "target-commitish: --target flag present"  "--target"    "$(cat "${CALL_LOG}")"
 check_contains "target-commitish: target value present"   "some-branch" "$(cat "${CALL_LOG}")"
@@ -366,7 +370,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 check_contains "assets-flat: file appended to gh args" "app.tar.gz" "$(cat "${CALL_LOG}")"
 
@@ -389,7 +393,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 check_contains "assets-glob: ** recursive pattern finds nested file" "app.whl" "$(cat "${CALL_LOG}")"
 
@@ -413,7 +417,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 check_contains "assets-glob-root: **/*.whl matches files from cwd" "root.whl" "$(cat "${CALL_LOG}")"
 
@@ -436,7 +440,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh" 2>/dev/null || exit_code=$?
+run_create_release 2>/dev/null || exit_code=$?
 
 check "gh-fail: exits non-zero with fail-on-error=true" "1" "${exit_code}"
 unset MOCK_CREATE_FAIL
@@ -458,7 +462,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 check_contains "explicit-body: --notes flag in gh args"      "--notes"                       "$(cat "${CALL_LOG}")"
 check_contains "explicit-body: body content passed to gh"    "My hand-written release notes" "$(cat "${CALL_LOG}")"
@@ -484,7 +488,7 @@ stdout_output="$(
   INPUT_PATH_FILTER="" \
   INPUT_TAG_PREFIX="" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>/dev/null
+  run_create_release 2>/dev/null
 )"
 
 check_contains "set_output-fallback: stdout has OUTPUT key=value" "OUTPUT release-url=" "${stdout_output}"
@@ -511,7 +515,7 @@ move_major_output="$(
   INPUT_MOVE_MAJOR_TAG="true" \
   INPUT_MOVE_MINOR_TAG="false" \
   GITHUB_REPOSITORY="test/repo" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )"
 
 check_contains "move-major-tag: log says Moved v0" "Moved v0." "${move_major_output}"
@@ -538,7 +542,7 @@ move_minor_output="$(
   INPUT_MOVE_MAJOR_TAG="false" \
   INPUT_MOVE_MINOR_TAG="true" \
   GITHUB_REPOSITORY="test/repo" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )"
 
 check_contains "move-minor-tag: log says Moved v0.2" "Moved v0.2." "${move_minor_output}"
@@ -565,7 +569,7 @@ prerelease_move_output="$(
   INPUT_FAIL_ON_ERROR="true" \
   INPUT_MOVE_MAJOR_TAG="true" \
   INPUT_MOVE_MINOR_TAG="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )"
 
 check_contains "floating-tags-prerelease: skip log message present" "Skipping floating pointer tag movement" "${prerelease_move_output}"
@@ -592,7 +596,7 @@ major_only_output="$(
   INPUT_FAIL_ON_ERROR="true" \
   INPUT_MOVE_MAJOR_TAG="false" \
   INPUT_MOVE_MINOR_TAG="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )"
 
 check_contains "major-only-tag: warns could not parse MAJOR.MINOR" "Could not parse MAJOR.MINOR" "${major_only_output}"
@@ -618,7 +622,7 @@ previous_release_output="$(
   INPUT_PATH_FILTER="" \
   INPUT_TAG_PREFIX="" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )"
 
 check_contains "previous-release: published tag selected" \
@@ -644,7 +648,7 @@ INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
 INPUT_FAIL_ON_ERROR="true" \
-bash "${REPO_ROOT}/scripts/create-release.sh"
+run_create_release
 
 native_call="$(cat "${CALL_LOG}")"
 check_contains "github-native: preview endpoint called" \
@@ -682,7 +686,7 @@ new_native_output="$(
   INPUT_PATH_FILTER="" \
   INPUT_TAG_PREFIX="v" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )"
 
 new_native_call="$(cat "${CALL_LOG}")"
@@ -710,7 +714,7 @@ missing_native_target_output="$(
   INPUT_TO_TAG="" \
   INPUT_TAG_PREFIX="v" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )" || exit_code=$?
 
 check "github-native-missing-target: exits non-zero" "1" "${exit_code}"
@@ -734,7 +738,7 @@ native_to_tag_output="$(
   INPUT_TO_TAG="v0.1.0" \
   INPUT_PATH_FILTER="" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )" || exit_code=$?
 
 check "github-native-to-tag: exits non-zero" "1" "${exit_code}"
@@ -754,7 +758,7 @@ native_path_output="$(
   INPUT_TO_TAG="v0.2.0" \
   INPUT_PATH_FILTER="service-a" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )" || exit_code=$?
 
 check "github-native-path: exits non-zero" "1" "${exit_code}"
@@ -771,7 +775,7 @@ oversized_body_output="$(
   INPUT_BODY="${oversized_body}" \
   INPUT_PRERELEASE="false" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )" || exit_code=$?
 
 check "oversized-explicit-body: exits non-zero" "1" "${exit_code}"
@@ -800,7 +804,7 @@ oversized_generated_output="$(
   INPUT_TO_TAG="v0.2.0" \
   INPUT_PATH_FILTER="" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )" || exit_code=$?
 
 check "oversized-generated-body: exits non-zero" "1" "${exit_code}"
@@ -834,7 +838,7 @@ interleaved_output="$(
   INPUT_PATH_FILTER="api" \
   INPUT_TAG_PREFIX="api/" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )"
 
 check_contains "interleaved-releases: matching stream selected" \
@@ -861,7 +865,7 @@ nonancestor_output="$(
   INPUT_PATH_FILTER="api" \
   INPUT_TAG_PREFIX="api/" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )"
 
 check_contains "non-ancestor-release: older ancestor selected" \
@@ -881,7 +885,7 @@ missing_release_tag_output="$(
   INPUT_TO_TAG="" \
   INPUT_TAG_PREFIX="api/" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )" || exit_code=$?
 
 check "missing-release-tag: exits non-zero" "1" "${exit_code}"
@@ -903,7 +907,7 @@ release_list_failure_output="$(
   INPUT_TO_TAG="" \
   INPUT_TAG_PREFIX="api/" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )" || exit_code=$?
 
 check "release-list-failure: exits non-zero" "1" "${exit_code}"
@@ -926,7 +930,7 @@ oversized_native_output="$(
   INPUT_FROM_TAG="v0.1.0" \
   INPUT_TO_TAG="v0.2.0" \
   INPUT_FAIL_ON_ERROR="true" \
-  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+  run_create_release 2>&1
 )" || exit_code=$?
 
 check "oversized-native-body: exits non-zero" "1" "${exit_code}"
