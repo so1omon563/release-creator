@@ -692,6 +692,34 @@ check_contains "github-native-new-tag: release pinned to target SHA" \
   "--target ${MOCK_TARGET_SHA}" "${new_native_call}"
 unset MOCK_RELEASE_TAGS MOCK_TARGET_SHA
 
+# ── Test 19c: unavailable native target fails before range generation ─────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+export MOCK_RELEASE_TAGS="v0.1.0"
+export MOCK_TARGET_SHA="1111111111111111111111111111111111111111"
+exit_code=0
+missing_native_target_output="$(
+  INPUT_TAG="v9.0.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="" \
+  INPUT_NOTES_FORMAT="github-native" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_TAG_PREFIX="v" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)" || exit_code=$?
+
+check "github-native-missing-target: exits non-zero" "1" "${exit_code}"
+check_contains "github-native-missing-target: actionable local-history error" \
+  "not available locally for from-tag inference" "${missing_native_target_output}"
+check_not_contains "github-native-missing-target: preview not called" \
+  "releases/generate-notes" "$(cat "${CALL_LOG}")"
+check_not_contains "github-native-missing-target: release create not called" \
+  "release create" "$(cat "${CALL_LOG}")"
+unset MOCK_RELEASE_TAGS MOCK_TARGET_SHA
+
 # ── Test 20: github-native rejects a different to-tag ──────────────────────
 : > "${CALL_LOG}"
 exit_code=0

@@ -144,6 +144,9 @@ if [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
         if [[ "${NOTES_FORMAT}" == "github-native" &&
               "${TO_TAG}" == "${TAG}" &&
               -n "${NATIVE_TARGET_SHA}" ]]; then
+          if ! git rev-parse --verify "${NATIVE_TARGET_SHA}^{commit}" &>/dev/null; then
+            die "Resolved target commit ${NATIVE_TARGET_SHA} is not available locally for from-tag inference. Fetch the target history or set from-tag explicitly."
+          fi
           to_commit="${NATIVE_TARGET_SHA}"
         else
           die "Cannot infer from-tag because to-tag ${TO_TAG} is not available locally. Fetch full history and tags with actions/checkout fetch-depth: 0, or set from-tag explicitly."
@@ -155,10 +158,15 @@ if [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
       die "Published release tag ${release_tag} is not available locally. Fetch full history and tags with actions/checkout fetch-depth: 0, or set from-tag explicitly."
     fi
 
-    if [[ "${release_commit}" != "${to_commit}" ]] &&
-       git merge-base --is-ancestor "${release_commit}" "${to_commit}"; then
+    [[ "${release_commit}" == "${to_commit}" ]] && continue
+    if git merge-base --is-ancestor "${release_commit}" "${to_commit}"; then
       FROM_TAG="${release_tag}"
       break
+    else
+      merge_base_status=$?
+      if (( merge_base_status > 1 )); then
+        die "Could not compare published release tag ${release_tag} with to-tag ${TO_TAG}. Fetch full history and tags with actions/checkout fetch-depth: 0, or set from-tag explicitly."
+      fi
     fi
   done <<< "${release_tags}"
 
