@@ -73,6 +73,7 @@ TAG_PREFIX="${INPUT_TAG_PREFIX:-}"
 FAIL_ON_ERROR="${INPUT_FAIL_ON_ERROR:-true}"
 MOVE_MAJOR_TAG="${INPUT_MOVE_MAJOR_TAG:-false}"
 MOVE_MINOR_TAG="${INPUT_MOVE_MINOR_TAG:-false}"
+MAX_RELEASE_BODY_LENGTH=125000
 
 # ── Validate required inputs ─────────────────────────────────────────────────
 if [[ -z "${TAG}" ]]; then
@@ -101,6 +102,20 @@ if [[ -z "${TO_TAG}" ]]; then
   TO_TAG="${TAG}"
 fi
 
+# ── Resolve FROM_TAG ─────────────────────────────────────────────────────────
+if [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
+  if ! FROM_TAG="$(gh release list --exclude-drafts --limit 1 \
+      --json tagName --jq '.[0].tagName // ""')"; then
+    die "Could not determine the previous published release. Set from-tag explicitly."
+  fi
+
+  if [[ -n "${FROM_TAG}" ]]; then
+    log "Using previous published release as from-tag: ${FROM_TAG}"
+  else
+    log "No previous published release found; using full history."
+  fi
+fi
+
 # ── Determine pre-release status ──────────────────────────────────────────────
 if [[ "${PRERELEASE}" == "auto" ]]; then
   # shellcheck source=scripts/detect-prerelease.sh
@@ -113,16 +128,29 @@ fi
 NOTES_ARGS=()
 if [[ -z "${BODY}" ]]; then
   if [[ "${NOTES_FORMAT}" == "github-native" ]]; then
+    if [[ "${TO_TAG}" != "${TAG}" ]]; then
+      die "to-tag cannot differ from tag with notes-format: github-native."
+    fi
+    if [[ -n "${PATH_FILTER}" ]]; then
+      die "path-filter is not supported with notes-format: github-native."
+    fi
     NOTES_ARGS+=("--generate-notes")
+    if [[ -n "${FROM_TAG}" ]]; then
+      NOTES_ARGS+=("--notes-start-tag" "${FROM_TAG}")
+    fi
     log "Using GitHub-native release notes generation."
   else
     log "Generating release notes (format: ${NOTES_FORMAT})..."
-    export FROM_TAG TO_TAG NOTES_FORMAT PATH_FILTER TAG_PREFIX ACTION_PATH
+    export FROM_TAG TO_TAG NOTES_FORMAT PATH_FILTER ACTION_PATH
     BODY="$(bash "${ACTION_PATH}/scripts/generate-notes.sh")"
     log "Release notes generated (${#BODY} chars)."
   fi
 else
   log "Using explicit release body (overrides auto-generated notes)."
+fi
+
+if (( ${#BODY} > MAX_RELEASE_BODY_LENGTH )); then
+  die "Release body is ${#BODY} characters; GitHub allows at most ${MAX_RELEASE_BODY_LENGTH}. Narrow from-tag or path-filter, or provide a shorter body."
 fi
 
 # ── Build gh release create arguments ─────────────────────────────────────────

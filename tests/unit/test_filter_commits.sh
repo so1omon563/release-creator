@@ -111,10 +111,11 @@ output_filtered="$(FROM_TAG="v0.1.0" TO_TAG="v0.2.0" PATH_FILTER="service-a" TAG
 check_contains "path filter includes service-a commit" "feat(service-a): add service a" "${output_filtered}"
 check_not_contains "path filter excludes other commits"  "feat: add feature one" "${output_filtered}"
 
-# Test: no FROM_TAG falls back to previous tag auto-detection
+# Test: no FROM_TAG includes full history
 output_auto="$(FROM_TAG="" TO_TAG="v0.3.0" PATH_FILTER="" TAG_PREFIX="" \
   bash "${FILTER_SCRIPT}")"
-check_contains "auto FROM_TAG: includes post-v0.2.0 commit" "feat(service-b)" "${output_auto}"
+check_contains "empty FROM_TAG: includes latest commit" "feat(service-b)" "${output_auto}"
+check_contains "empty FROM_TAG: includes pre-tag history" "feat: add feature one" "${output_auto}"
 
 # Test: empty range returns empty output
 output_empty="$(FROM_TAG="v0.3.0" TO_TAG="v0.3.0" PATH_FILTER="" TAG_PREFIX="" \
@@ -136,19 +137,17 @@ output_merge="$(FROM_TAG="v0.3.0" TO_TAG="v0.4.0" PATH_FILTER="" TAG_PREFIX="" \
 check_contains "merge: feature commit included"  "feat(merge-test)"  "${output_merge}"
 check_not_contains "merge: merge commit excluded" "Merge branch"     "${output_merge}"
 
-# Test: TAG_PREFIX constrains FROM_TAG auto-detection
-# Add an app/ tag between v0.3.0 and v0.4.0 so that without prefix the auto-detected
-# FROM_TAG would be v0.3.0, but with prefix "app/" it should also find app/v0.1.0.
+# Test: prefixed tag names work in explicit ranges
 git tag app/v0.1.0 v0.3.0^{}  # point app prefix tag at the v0.3.0 commit
 echo "app_feat" > app_feat.txt
 git add app_feat.txt
 git commit -q -m "feat(app): add app feature"
 git tag app/v0.2.0
 
-output_prefix="$(FROM_TAG="" TO_TAG="app/v0.2.0" PATH_FILTER="" TAG_PREFIX="app/" \
+output_prefix="$(FROM_TAG="app/v0.1.0" TO_TAG="app/v0.2.0" PATH_FILTER="" TAG_PREFIX="app/" \
   bash "${FILTER_SCRIPT}")"
-check_contains "TAG_PREFIX: includes commit after app/v0.1.0" "feat(app): add app feature" "${output_prefix}"
-check_not_contains "TAG_PREFIX: excludes commits before app/v0.1.0" "feat(service-b)" "${output_prefix}"
+check_contains "prefixed range: includes commit after app/v0.1.0" "feat(app): add app feature" "${output_prefix}"
+check_not_contains "prefixed range: excludes commits before app/v0.1.0" "feat(service-b)" "${output_prefix}"
 
 echo ""
 echo "filter-commits: ${PASS} passed, ${FAIL} failed"
