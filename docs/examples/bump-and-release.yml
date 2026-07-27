@@ -91,7 +91,7 @@ jobs:
           fetch-depth: 0
 
       - name: Create GitHub Release
-        uses: so1omon563/release-creator@v1
+        uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ needs.bump-version.outputs.new_tag }}

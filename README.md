@@ -34,6 +34,7 @@ chained with
   - [Monorepo Support](#monorepo-support)
   - [Moving Floating Pointer Tags](#moving-floating-pointer-tags)
   - [Asset Upload](#asset-upload)
+  - [Publishing Your Action to GitHub Marketplace](#publishing-your-action-to-github-marketplace)
   - [Chaining with the Semver Bumper](#chaining-with-the-semver-bumper)
   - [Development](#development)
     - [Release Process](#release-process)
@@ -142,7 +143,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: so1omon563/release-creator@v1
+      - uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -168,7 +169,7 @@ jobs:
 
       - name: Create release
         if: steps.bump.outputs.skipped == 'false'
-        uses: so1omon563/release-creator@v1
+        uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.bump.outputs.new_version }}
@@ -262,7 +263,7 @@ jobs:
       - name: Create release
         # Skip if the bumper was told to skip (e.g. commit message contains #skip)
         if: steps.bump.outputs.skipped == 'false'
-        uses: so1omon563/release-creator@v1
+        uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.bump.outputs.new_version }}
@@ -292,7 +293,7 @@ jobs:
 ```yaml
 - name: Create release
   if: steps.bump.outputs.skipped == 'false'
-  uses: so1omon563/release-creator@v1
+  uses: so1omon563/release-creator@v2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: ${{ steps.bump.outputs.new_version }}
@@ -326,7 +327,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: so1omon563/release-creator@v1
+      - uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
@@ -363,7 +364,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: so1omon563/release-creator@v1
+      - uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ inputs.tag }}
@@ -376,7 +377,7 @@ jobs:
 ```yaml
 - name: Create release
   id: release
-  uses: so1omon563/release-creator@v1
+  uses: so1omon563/release-creator@v2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: v1.0.0
@@ -473,7 +474,7 @@ Use `path-filter` to scope release notes to commits that touch files under a spe
 directory:
 
 ```yaml
-- uses: so1omon563/release-creator@v1
+- uses: so1omon563/release-creator@v2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: services/auth/v2.1.0
@@ -491,7 +492,7 @@ Actions consumers who pin to `@v1` and want to receive patch updates automatical
 Enable them with `move-major-tag` and/or `move-minor-tag`:
 
 ```yaml
-- uses: so1omon563/release-creator@v1
+- uses: so1omon563/release-creator@v2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: v1.3.2
@@ -515,7 +516,7 @@ to advance when a release is intentionally published. Do not set `move_major_tag
 Provide newline-separated glob patterns to attach files to the release:
 
 ```yaml
-- uses: so1omon563/release-creator@v1
+- uses: so1omon563/release-creator@v2
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     tag: v1.0.0
@@ -525,6 +526,35 @@ Provide newline-separated glob patterns to attach files to the release:
       dist/**/*.whl
       checksums.txt
 ```
+
+## Publishing Your Action to GitHub Marketplace
+
+This action creates a normal GitHub Release. GitHub Marketplace publication is a flag on
+that same release, so you do **not** need a separate Marketplace tag or release.
+
+Before publishing, ensure the action repository:
+
+- is public and contains one `action.yml` or `action.yaml` at its root;
+- uses a unique action `name` and a `description` no longer than 125 characters;
+- includes valid `branding` metadata; and
+- has accepted the GitHub Marketplace Developer Agreement.
+
+Then:
+
+1. Create the GitHub Release with this action. When using the semver-bumper workflow
+   below, include `#release` in the PR title or body.
+2. Open that release on GitHub and choose **Edit**.
+3. Select **Publish this Action to the GitHub Marketplace**, choose the primary and
+   optional secondary categories, and resolve any metadata validation errors.
+4. Choose **Update release** and complete GitHub's two-factor authentication prompt.
+
+Repeat the Marketplace step for each release that should appear as an available
+Marketplace version. The final checkbox and category selection are manual because the
+GitHub CLI and Releases API do not expose Marketplace publication controls.
+
+See GitHub's
+[Publishing actions in GitHub Marketplace](https://docs.github.com/en/actions/how-tos/create-and-publish-actions/publish-in-github-marketplace)
+guide for the current requirements.
 
 ## Chaining with the Semver Bumper
 
@@ -592,7 +622,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: so1omon563/release-creator@v1
+      - uses: so1omon563/release-creator@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ needs.bump-version.outputs.new_tag }}
