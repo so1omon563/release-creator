@@ -62,8 +62,8 @@ inputs:
     description: >-
       Format for auto-generated release notes. Ignored when body is provided.
       Options: grouped (emoji section headers), conventional (flat list with
-      type prefix), flat (plain commit messages), github-native (delegate to
-      GitHub's built-in release notes generator).
+      type prefix), flat (plain commit messages), github-native (generate with
+      GitHub's built-in release notes API).
     required: false
     default: grouped
 
@@ -71,8 +71,8 @@ inputs:
     description: >-
       Start of the commit range used for release note generation (exclusive).
       Typically the previous published release tag. When omitted, the action
-      uses the latest published GitHub Release matching tag-prefix, or full
-      history when none exists.
+      uses the latest published GitHub Release matching tag-prefix that is a
+      local ancestor of to-tag, or full history when none exists.
     required: false
     default: ''
 

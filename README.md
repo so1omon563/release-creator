@@ -185,7 +185,8 @@ jobs:
 
 1. Reads the tag input (or infers it from `github.ref_name` on tag-push triggers)
 2. Resolves the commit range (`from-tag` to `to-tag`), using the latest published GitHub
-   Release matching `tag-prefix` as `from-tag` when omitted (or full history when none exists)
+   Release matching `tag-prefix` that is a local ancestor of `to-tag` when omitted
+   (or full history when none exists)
 3. Filters commits in that range (excludes merge commits; optionally scopes to a path)
 4. Parses [Conventional Commits][cc-spec] to group by type
 5. Generates release notes in the requested format
@@ -213,7 +214,7 @@ jobs:
 | `prerelease` | — | `auto` | `true`, `false`, or `auto` (inspect tag — see [Pre-release Auto-detection](#pre-release-auto-detection)) |
 | `target-commitish` | — | `''` | Branch or SHA to tag from |
 | `notes-format` | — | `grouped` | `grouped`, `conventional`, `flat`, or `github-native` |
-| `from-tag` | — | latest published Release | Start of commit range for notes (exclusive); constrained by `tag-prefix`; full history when no matching Release exists |
+| `from-tag` | — | latest published ancestor | Start of commit range for notes (exclusive); constrained by `tag-prefix` and local ancestry; full history when no matching Release exists |
 | `to-tag` | — | `tag` value | End of commit range for notes (inclusive); must equal `tag` with `github-native` |
 | `asset-paths` | — | `''` | Newline-separated glob patterns for assets to upload |
 | `skip-if-release-exists` | — | `false` | Exit successfully without error if release already exists |
@@ -441,12 +442,12 @@ Plain descriptions with no type prefix:
 
 ### `github-native`
 
-Delegates entirely to GitHub's built-in release notes generator
-(`gh release create --generate-notes`). Useful when you prefer GitHub's
-default PR-based grouping. An explicit `from-tag` is forwarded as
-`--notes-start-tag`. Because GitHub generates notes for the release tag and
-does not support path filtering, `to-tag` must equal `tag` and `path-filter`
-cannot be used with this format.
+Uses GitHub's built-in release notes API. The action previews the generated body,
+validates GitHub's 125000-character limit, and then creates the release with the
+validated notes. An explicit `from-tag` is forwarded as the API's
+`previous_tag_name`. Because GitHub generates notes for the release tag and does
+not support path filtering, `to-tag` must equal `tag` and `path-filter` cannot be
+used with this format.
 
 ## Pre-release Auto-detection
 
@@ -627,8 +628,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ needs.bump-version.outputs.new_tag }}
           tag-prefix: v
-          # from-tag omitted: use the latest published GitHub Release rather
-          # than an intervening tag-only bump.
+          # from-tag omitted: use the latest published ancestor rather than
+          # an intervening tag-only bump.
           notes-format: grouped
           move-major-tag: 'true'
           move-minor-tag: 'true'

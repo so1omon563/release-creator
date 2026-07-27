@@ -97,7 +97,7 @@ jobs:
           tag: ${{ needs.bump-version.outputs.new_tag }}
           tag-prefix: v
           # from-tag is omitted intentionally: release-creator uses the latest
-          # published GitHub Release, not an intervening tag-only bump.
+          # published ancestor, not an intervening tag-only bump.
 
           # Release note format. Options: grouped | conventional | flat | github-native
           # grouped    → emoji section headers grouped by commit type (default)

@@ -106,11 +106,29 @@ fi
 if [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
   if ! release_tags="$(gh release list --exclude-drafts --limit 1000 \
       --json tagName --jq '.[].tagName')"; then
-    die "Could not determine the previous published release. Set from-tag explicitly."
+    die "Could not list published releases. Check token permissions/authentication, or set from-tag explicitly."
   fi
 
+  to_commit=""
   while IFS= read -r release_tag; do
-    if [[ -z "${TAG_PREFIX}" || "${release_tag}" == "${TAG_PREFIX}"* ]]; then
+    [[ -z "${release_tag}" ]] && continue
+    if [[ -n "${TAG_PREFIX}" && "${release_tag}" != "${TAG_PREFIX}"* ]]; then
+      continue
+    fi
+    [[ "${release_tag}" == "${TO_TAG}" ]] && continue
+
+    if [[ -z "${to_commit}" ]]; then
+      if ! to_commit="$(git rev-parse --verify "${TO_TAG}^{commit}" 2>/dev/null)"; then
+        die "Cannot infer from-tag because to-tag ${TO_TAG} is not available locally. Fetch full history and tags with actions/checkout fetch-depth: 0, or set from-tag explicitly."
+      fi
+    fi
+
+    if ! release_commit="$(git rev-parse --verify "${release_tag}^{commit}" 2>/dev/null)"; then
+      die "Published release tag ${release_tag} is not available locally. Fetch full history and tags with actions/checkout fetch-depth: 0, or set from-tag explicitly."
+    fi
+
+    if [[ "${release_commit}" != "${to_commit}" ]] &&
+       git merge-base --is-ancestor "${release_commit}" "${to_commit}"; then
       FROM_TAG="${release_tag}"
       break
     fi
@@ -141,11 +159,26 @@ if [[ -z "${BODY}" ]]; then
     if [[ -n "${PATH_FILTER}" ]]; then
       die "path-filter is not supported with notes-format: github-native."
     fi
-    NOTES_ARGS+=("--generate-notes")
-    if [[ -n "${FROM_TAG}" ]]; then
-      NOTES_ARGS+=("--notes-start-tag" "${FROM_TAG}")
+    GENERATE_NOTES_ARGS=(
+      "--method" "POST"
+      "repos/{owner}/{repo}/releases/generate-notes"
+      "-f" "tag_name=${TAG}"
+    )
+    native_target_commitish="${TARGET_COMMITISH}"
+    if [[ -z "${native_target_commitish}" ]]; then
+      if ! native_target_commitish="$(gh api "repos/{owner}/{repo}" --jq '.default_branch')"; then
+        die "Could not determine the repository default branch for GitHub-native release notes."
+      fi
     fi
-    log "Using GitHub-native release notes generation."
+    GENERATE_NOTES_ARGS+=("-f" "target_commitish=${native_target_commitish}")
+    if [[ -n "${FROM_TAG}" ]]; then
+      GENERATE_NOTES_ARGS+=("-f" "previous_tag_name=${FROM_TAG}")
+    fi
+    if ! BODY="$(gh api "${GENERATE_NOTES_ARGS[@]}" --jq '.body')"; then
+      die "Could not generate GitHub-native release notes. Check token permissions/authentication and the configured tag range."
+    fi
+    NOTES_ARGS+=("--notes" "${BODY}")
+    log "GitHub-native release notes generated (${#BODY} chars)."
   else
     log "Generating release notes (format: ${NOTES_FORMAT})..."
     export FROM_TAG TO_TAG NOTES_FORMAT PATH_FILTER ACTION_PATH

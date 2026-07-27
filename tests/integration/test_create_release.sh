@@ -102,6 +102,10 @@ case "${1:-}" in
         fi
         ;;
       list)
+        if [[ "${MOCK_RELEASE_LIST_FAIL:-false}" == "true" ]]; then
+          echo "authentication failed" >&2
+          exit 1
+        fi
         printf '%s\n' "${MOCK_RELEASE_TAGS:-${MOCK_PREVIOUS_RELEASE_TAG:-}}"
         exit 0
         ;;
@@ -120,6 +124,18 @@ case "${1:-}" in
   api)
     # Handle gh api calls for floating tag ref creation/update
     echo "$@" >> "${CALL_LOG}"
+    if [[ "${2:-}" == "repos/{owner}/{repo}" ]]; then
+      echo "main"
+      exit 0
+    fi
+    if [[ "${*}" == *"/releases/generate-notes"* ]]; then
+      if [[ "${MOCK_NATIVE_NOTES_FAIL:-false}" == "true" ]]; then
+        echo "release notes generation failed" >&2
+        exit 1
+      fi
+      printf '%s\n' "${MOCK_NATIVE_NOTES:-Generated GitHub-native notes}"
+      exit 0
+    fi
     # PATCH repos/.../git/refs/tags/... — update existing ref
     # POST  repos/.../git/refs         — create new ref
     # Both succeed silently
@@ -622,8 +638,16 @@ INPUT_FAIL_ON_ERROR="true" \
 bash "${REPO_ROOT}/scripts/create-release.sh"
 
 native_call="$(cat "${CALL_LOG}")"
-check_contains "github-native: generate-notes passed" "--generate-notes" "${native_call}"
-check_contains "github-native: notes-start-tag passed" "--notes-start-tag v0.1.0" "${native_call}"
+check_contains "github-native: preview endpoint called" \
+  "repos/{owner}/{repo}/releases/generate-notes" "${native_call}"
+check_contains "github-native: previous tag forwarded" \
+  "previous_tag_name=v0.1.0" "${native_call}"
+check_contains "github-native: default branch forwarded" \
+  "target_commitish=main" "${native_call}"
+check_contains "github-native: generated body passed to release" \
+  "--notes Generated GitHub-native notes" "${native_call}"
+check_not_contains "github-native: server-side generation disabled" \
+  "--generate-notes" "${native_call}"
 
 # ── Test 20: github-native rejects a different to-tag ──────────────────────
 : > "${CALL_LOG}"
@@ -745,6 +769,99 @@ check_contains "interleaved-releases: matching stream selected" \
 check_contains "interleaved-releases: component commit retained" \
   "add endpoint" "$(cat "${CALL_LOG}")"
 unset MOCK_RELEASE_TAGS
+
+# ── Test 25: inferred release skips a newer non-ancestor tag ──────────────
+side_tree="$(git rev-parse 'v0.1.0^{tree}')"
+side_commit="$(printf 'side release\n' | git commit-tree "${side_tree}" -p v0.1.0)"
+git tag api/v9.0.0 "${side_commit}"
+
+: > "${CALL_LOG}"
+export MOCK_RELEASE_TAGS=$'api/v9.0.0\napi/v1.0.0'
+
+nonancestor_output="$(
+  INPUT_TAG="api/v2.0.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="flat" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_PATH_FILTER="api" \
+  INPUT_TAG_PREFIX="api/" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)"
+
+check_contains "non-ancestor-release: older ancestor selected" \
+  "Using previous published release as from-tag: api/v1.0.0" "${nonancestor_output}"
+unset MOCK_RELEASE_TAGS
+
+# ── Test 26: missing local release tag fails with fetch guidance ──────────
+: > "${CALL_LOG}"
+export MOCK_RELEASE_TAGS="api/v8.0.0"
+exit_code=0
+missing_release_tag_output="$(
+  INPUT_TAG="api/v2.0.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="flat" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_TAG_PREFIX="api/" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)" || exit_code=$?
+
+check "missing-release-tag: exits non-zero" "1" "${exit_code}"
+check_contains "missing-release-tag: actionable fetch guidance" \
+  "fetch-depth: 0" "${missing_release_tag_output}"
+check "missing-release-tag: gh create not called" "" "$(cat "${CALL_LOG}")"
+unset MOCK_RELEASE_TAGS
+
+# ── Test 27: release-list auth failure is actionable ──────────────────────
+: > "${CALL_LOG}"
+export MOCK_RELEASE_LIST_FAIL="true"
+exit_code=0
+release_list_failure_output="$(
+  INPUT_TAG="api/v2.0.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="flat" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_TAG_PREFIX="api/" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)" || exit_code=$?
+
+check "release-list-failure: exits non-zero" "1" "${exit_code}"
+check_contains "release-list-failure: mentions authentication" \
+  "permissions/authentication" "${release_list_failure_output}"
+check_contains "release-list-failure: suggests explicit range" \
+  "set from-tag explicitly" "${release_list_failure_output}"
+unset MOCK_RELEASE_LIST_FAIL
+
+# ── Test 28: oversized GitHub-native body fails before release creation ───
+: > "${CALL_LOG}"
+printf -v oversized_native_notes '%*s' 125001 ''
+export MOCK_NATIVE_NOTES="${oversized_native_notes}"
+exit_code=0
+oversized_native_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="github-native" \
+  INPUT_FROM_TAG="v0.1.0" \
+  INPUT_TO_TAG="v0.2.0" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)" || exit_code=$?
+
+check "oversized-native-body: exits non-zero" "1" "${exit_code}"
+check_contains "oversized-native-body: actionable error" \
+  "GitHub allows at most 125000" "${oversized_native_output}"
+check_not_contains "oversized-native-body: release create not called" \
+  "release create" "$(cat "${CALL_LOG}")"
+unset MOCK_NATIVE_NOTES
 
 echo ""
 echo "integration: ${PASS} passed, ${FAIL} failed"
