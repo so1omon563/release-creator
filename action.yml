@@ -28,6 +28,7 @@ inputs:
   body:
     description: >-
       Explicit release body text. When provided, overrides auto-generated notes.
+      GitHub limits release bodies to 125000 characters.
     required: false
     default: ''
 
@@ -66,15 +67,17 @@ inputs:
   from-tag:
     description: >-
       Start of the commit range used for release note generation (exclusive).
-      Typically the previous release tag. When omitted, the action uses the
-      tag immediately preceding the to-tag.
+      Typically the previous published release tag. When omitted, the action
+      uses the latest published GitHub Release matching tag-prefix, or full
+      history when none exists.
     required: false
     default: ''
 
   to-tag:
     description: >-
       End of the commit range used for release note generation (inclusive).
-      Defaults to the value of the tag input.
+      Defaults to the value of the tag input. With github-native, this must
+      equal the release tag.
     required: false
     default: ''
 
@@ -95,16 +98,17 @@ inputs:
   path-filter:
     description: >-
       Limit release notes to commits that touch files under this path. Useful
-      for monorepos. Accepts a single directory or file path.
+      for monorepos. Accepts a single directory or file path. Not supported
+      with github-native.
     required: false
     default: ''
 
   tag-prefix:
     description: >-
       Prefix to strip when comparing version numbers (e.g. v for tags like
-      v1.2.3). Used during pre-release auto-detection and version comparisons.
-      When chaining with custom-semver-bumper, set this
-      to match the bumper's tag_prefix input (default: v).
+      v1.2.3). Also limits automatic from-tag selection to the same release
+      stream. When chaining with custom-semver-bumper, set this to match the
+      bumper's tag_prefix input (default: v).
     required: false
     default: ''
 

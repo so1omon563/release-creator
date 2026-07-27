@@ -12,7 +12,6 @@
 #   TO_TAG          - end of commit range (inclusive)
 #   NOTES_FORMAT    - one of: grouped, conventional, flat, github-native
 #   PATH_FILTER     - optional path to scope commits (monorepo)
-#   TAG_PREFIX      - optional prefix to strip before version comparisons
 #   ACTION_PATH     - path to the action root (used to call filter-commits.sh)
 
 set -euo pipefail
@@ -21,7 +20,6 @@ NOTES_FORMAT="${NOTES_FORMAT:-grouped}"
 FROM_TAG="${FROM_TAG:-}"
 TO_TAG="${TO_TAG:-}"
 PATH_FILTER="${PATH_FILTER:-}"
-TAG_PREFIX="${TAG_PREFIX:-}"
 ACTION_PATH="${ACTION_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # For github-native, just output the marker and exit — caller handles it
@@ -32,7 +30,7 @@ fi
 
 # Fetch commits
 commits="$(FROM_TAG="${FROM_TAG}" TO_TAG="${TO_TAG}" PATH_FILTER="${PATH_FILTER}" \
-  TAG_PREFIX="${TAG_PREFIX}" bash "${ACTION_PATH}/scripts/filter-commits.sh")"
+  bash "${ACTION_PATH}/scripts/filter-commits.sh")"
 
 if [[ -z "${commits}" ]]; then
   echo "_No changes in this release._"

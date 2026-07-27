@@ -101,6 +101,10 @@ case "${1:-}" in
           exit 1
         fi
         ;;
+      list)
+        printf '%s\n' "${MOCK_RELEASE_TAGS:-${MOCK_PREVIOUS_RELEASE_TAG:-}}"
+        exit 0
+        ;;
       create)
         if [[ "${MOCK_CREATE_FAIL:-false}" == "true" ]]; then
           echo "error: release creation failed" >&2
@@ -569,6 +573,178 @@ major_only_output="$(
 
 check_contains "major-only-tag: warns could not parse MAJOR.MINOR" "Could not parse MAJOR.MINOR" "${major_only_output}"
 check_not_contains "major-only-tag: no bogus Moved v5.5 tag" "Moved v5.5" "${major_only_output}"
+
+# ── Test 18: missing from-tag uses the previous published release ──────────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+export MOCK_PREVIOUS_RELEASE_TAG="v0.1.0"
+
+previous_release_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_RELEASE_NAME="" \
+  INPUT_BODY="" \
+  INPUT_DRAFT="false" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_ASSET_PATHS="" \
+  INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+  INPUT_PATH_FILTER="" \
+  INPUT_TAG_PREFIX="" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)"
+
+check_contains "previous-release: published tag selected" \
+  "Using previous published release as from-tag: v0.1.0" "${previous_release_output}"
+unset MOCK_PREVIOUS_RELEASE_TAG
+
+# ── Test 19: github-native forwards explicit from-tag ──────────────────────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="github-native" \
+INPUT_FROM_TAG="v0.1.0" \
+INPUT_TO_TAG="v0.2.0" \
+INPUT_ASSET_PATHS="" \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+bash "${REPO_ROOT}/scripts/create-release.sh"
+
+native_call="$(cat "${CALL_LOG}")"
+check_contains "github-native: generate-notes passed" "--generate-notes" "${native_call}"
+check_contains "github-native: notes-start-tag passed" "--notes-start-tag v0.1.0" "${native_call}"
+
+# ── Test 20: github-native rejects a different to-tag ──────────────────────
+: > "${CALL_LOG}"
+exit_code=0
+native_to_tag_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="github-native" \
+  INPUT_FROM_TAG="v0.1.0" \
+  INPUT_TO_TAG="v0.1.0" \
+  INPUT_PATH_FILTER="" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)" || exit_code=$?
+
+check "github-native-to-tag: exits non-zero" "1" "${exit_code}"
+check_contains "github-native-to-tag: actionable error" \
+  "to-tag cannot differ from tag" "${native_to_tag_output}"
+check "github-native-to-tag: gh create not called" "" "$(cat "${CALL_LOG}")"
+
+# ── Test 21: github-native rejects path-filter ─────────────────────────────
+: > "${CALL_LOG}"
+exit_code=0
+native_path_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="github-native" \
+  INPUT_FROM_TAG="v0.1.0" \
+  INPUT_TO_TAG="v0.2.0" \
+  INPUT_PATH_FILTER="service-a" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)" || exit_code=$?
+
+check "github-native-path: exits non-zero" "1" "${exit_code}"
+check_contains "github-native-path: actionable error" \
+  "path-filter is not supported" "${native_path_output}"
+check "github-native-path: gh create not called" "" "$(cat "${CALL_LOG}")"
+
+# ── Test 22: oversized explicit body fails before gh create ────────────────
+: > "${CALL_LOG}"
+printf -v oversized_body '%*s' 125001 ''
+exit_code=0
+oversized_body_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_BODY="${oversized_body}" \
+  INPUT_PRERELEASE="false" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)" || exit_code=$?
+
+check "oversized-explicit-body: exits non-zero" "1" "${exit_code}"
+check_contains "oversized-explicit-body: actionable error" \
+  "GitHub allows at most 125000" "${oversized_body_output}"
+check "oversized-explicit-body: gh create not called" "" "$(cat "${CALL_LOG}")"
+
+# ── Test 23: oversized generated body fails before gh create ───────────────
+: > "${CALL_LOG}"
+oversized_action_path="${TMPDIR}/oversized-action"
+mkdir -p "${oversized_action_path}/scripts"
+cat > "${oversized_action_path}/scripts/generate-notes.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%125001s' ''
+EOF
+chmod +x "${oversized_action_path}/scripts/generate-notes.sh"
+
+exit_code=0
+oversized_generated_output="$(
+  ACTION_PATH="${oversized_action_path}" \
+  INPUT_TAG="v0.2.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="v0.1.0" \
+  INPUT_TO_TAG="v0.2.0" \
+  INPUT_PATH_FILTER="" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)" || exit_code=$?
+
+check "oversized-generated-body: exits non-zero" "1" "${exit_code}"
+check_contains "oversized-generated-body: actionable error" \
+  "GitHub allows at most 125000" "${oversized_generated_output}"
+check "oversized-generated-body: gh create not called" "" "$(cat "${CALL_LOG}")"
+
+# ── Test 24: inferred release stays within the configured tag prefix ──────
+mkdir -p api web
+git tag api/v1.0.0
+echo "endpoint" > api/endpoint.txt
+git add api/endpoint.txt
+git commit -q -m "feat(api): add endpoint"
+echo "release" > web/release.txt
+git add web/release.txt
+git commit -q -m "chore(web): publish release"
+git tag web/v2.0.0
+git tag api/v2.0.0
+
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+export MOCK_RELEASE_TAGS=$'web/v2.0.0\napi/v1.0.0'
+
+interleaved_output="$(
+  INPUT_TAG="api/v2.0.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="flat" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_PATH_FILTER="api" \
+  INPUT_TAG_PREFIX="api/" \
+  INPUT_FAIL_ON_ERROR="true" \
+  bash "${REPO_ROOT}/scripts/create-release.sh" 2>&1
+)"
+
+check_contains "interleaved-releases: matching stream selected" \
+  "Using previous published release as from-tag: api/v1.0.0" "${interleaved_output}"
+check_contains "interleaved-releases: component commit retained" \
+  "add endpoint" "$(cat "${CALL_LOG}")"
+unset MOCK_RELEASE_TAGS
 
 echo ""
 echo "integration: ${PASS} passed, ${FAIL} failed"
