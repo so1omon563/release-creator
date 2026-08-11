@@ -239,14 +239,64 @@ check_contains "skip: created=false in output" "false"   "${skip_output}"
 
 unset MOCK_RELEASE_EXISTS
 
-# ── Test 4: fail-on-error=false swallows errors ───────────────────────────
+# ── Test 4: tag-push ref is inferred when INPUT_TAG is empty ──────────────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+
+INPUT_TAG="" \
+GITHUB_REF_TYPE="tag" \
+GITHUB_REF_NAME="v0.2.0" \
+INPUT_BODY="tag push release" \
+INPUT_PRERELEASE="false" \
+INPUT_FAIL_ON_ERROR="true" \
+run_create_release
+
+check_contains "tag-ref: inferred tag passed to gh" \
+  "release create v0.2.0" "$(cat "${CALL_LOG}")"
+
+# ── Test 4b: branch ref is rejected when INPUT_TAG is empty ───────────────
+: > "${CALL_LOG}"
+exit_code=0
+branch_ref_output="$(
+  INPUT_TAG="" \
+  GITHUB_REF_TYPE="branch" \
+  GITHUB_REF_NAME="main" \
+  INPUT_BODY="branch release" \
+  INPUT_FAIL_ON_ERROR="true" \
+  run_create_release 2>&1
+)" || exit_code=$?
+
+check "branch-ref: exits non-zero" "1" "${exit_code}"
+check_contains "branch-ref: reports missing tag" \
+  "tag input is required" "${branch_ref_output}"
+check_not_contains "branch-ref: release not created" \
+  "release create" "$(cat "${CALL_LOG}")"
+
+# ── Test 4c: pull-request ref is rejected when INPUT_TAG is empty ─────────
+: > "${CALL_LOG}"
+exit_code=0
+pr_ref_output="$(
+  INPUT_TAG="" \
+  GITHUB_REF_TYPE="branch" \
+  GITHUB_REF_NAME="2/merge" \
+  INPUT_BODY="pull request release" \
+  INPUT_FAIL_ON_ERROR="true" \
+  run_create_release 2>&1
+)" || exit_code=$?
+
+check "pull-request-ref: exits non-zero" "1" "${exit_code}"
+check_contains "pull-request-ref: reports missing tag" \
+  "tag input is required" "${pr_ref_output}"
+check_not_contains "pull-request-ref: release not created" \
+  "release create" "$(cat "${CALL_LOG}")"
+
+# ── Test 4d: fail-on-error=false swallows errors ──────────────────────────
 : > "${GITHUB_OUTPUT}"
 
 # Pass an invalid token scenario — just test the output fields.
-# GITHUB_REF_NAME must be cleared: create-release.sh falls back to it when
-# INPUT_TAG is empty, and the CI runner sets it to the PR ref (e.g. "2/merge").
 INPUT_TAG="" \
-GITHUB_REF_NAME="" \
+GITHUB_REF_TYPE="branch" \
+GITHUB_REF_NAME="2/merge" \
 INPUT_RELEASE_NAME="" \
 INPUT_BODY="" \
 INPUT_DRAFT="false" \
