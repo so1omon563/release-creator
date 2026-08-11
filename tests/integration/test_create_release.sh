@@ -445,6 +445,51 @@ run_create_release 2>/dev/null || exit_code=$?
 check "gh-fail: exits non-zero with fail-on-error=true" "1" "${exit_code}"
 unset MOCK_CREATE_FAIL
 
+# ── Test 11b: note-generation failures honor fail-on-error ───────────────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+exit_code=0
+soft_notes_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="definitely-missing" \
+  INPUT_TO_TAG="v0.2.0" \
+  INPUT_FAIL_ON_ERROR="false" \
+  run_create_release 2>&1
+)" || exit_code=$?
+
+check "notes-fail-soft: exits zero" "0" "${exit_code}"
+check_contains "notes-fail-soft: actionable error" \
+  "Could not generate release notes" "${soft_notes_output}"
+check_contains "notes-fail-soft: created=false emitted" \
+  $'created<<EOF_OUTPUT\nfalse' "$(cat "${GITHUB_OUTPUT}")"
+check_contains "notes-fail-soft: skipped=false emitted" \
+  $'skipped<<EOF_OUTPUT\nfalse' "$(cat "${GITHUB_OUTPUT}")"
+check_not_contains "notes-fail-soft: release not created" \
+  "release create" "$(cat "${CALL_LOG}")"
+
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+exit_code=0
+hard_notes_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="definitely-missing" \
+  INPUT_TO_TAG="v0.2.0" \
+  INPUT_FAIL_ON_ERROR="true" \
+  run_create_release 2>&1
+)" || exit_code=$?
+
+check "notes-fail-hard: exits non-zero" "1" "${exit_code}"
+check_contains "notes-fail-hard: actionable error" \
+  "Could not generate release notes" "${hard_notes_output}"
+check_not_contains "notes-fail-hard: release not created" \
+  "release create" "$(cat "${CALL_LOG}")"
+
 # ── Test 12: BODY explicitly set bypasses generate-notes ─────────────────
 : > "${CALL_LOG}"
 
