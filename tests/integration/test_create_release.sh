@@ -353,8 +353,9 @@ check_contains "target-commitish: target value present"   "some-branch" "$(cat "
 
 # ── Test 9: asset-paths with flat glob pattern ───────────────────────────
 : > "${CALL_LOG}"
-mkdir -p "${TMPDIR}/dist"
+mkdir -p "${TMPDIR}/dist/nested"
 echo "binary content" > "${TMPDIR}/dist/app.tar.gz"
+echo "nested content" > "${TMPDIR}/dist/nested/app.tar.gz"
 
 INPUT_TAG="v0.2.0" \
 INPUT_RELEASE_NAME="" \
@@ -365,7 +366,7 @@ INPUT_TARGET_COMMITISH="" \
 INPUT_NOTES_FORMAT="grouped" \
 INPUT_FROM_TAG="" \
 INPUT_TO_TAG="" \
-INPUT_ASSET_PATHS="dist/app.tar.gz" \
+INPUT_ASSET_PATHS="dist/*.tar.gz" \
 INPUT_SKIP_IF_RELEASE_EXISTS="false" \
 INPUT_PATH_FILTER="" \
 INPUT_TAG_PREFIX="" \
@@ -373,10 +374,38 @@ INPUT_FAIL_ON_ERROR="true" \
 run_create_release
 
 check_contains "assets-flat: file appended to gh args" "app.tar.gz" "$(cat "${CALL_LOG}")"
+check_not_contains "assets-flat: nested file excluded" "dist/nested/app.tar.gz" "$(cat "${CALL_LOG}")"
+
+# ── Test 9b: overlapping patterns preserve spaces and deduplicate ────────
+: > "${CALL_LOG}"
+echo "spaced" > "${TMPDIR}/dist/file name.tar.gz"
+
+INPUT_TAG="v0.2.0" \
+INPUT_RELEASE_NAME="" \
+INPUT_BODY="explicit body" \
+INPUT_DRAFT="false" \
+INPUT_PRERELEASE="false" \
+INPUT_TARGET_COMMITISH="" \
+INPUT_NOTES_FORMAT="grouped" \
+INPUT_FROM_TAG="" \
+INPUT_TO_TAG="" \
+INPUT_ASSET_PATHS=$'dist/*.tar.gz\ndist/**/*.tar.gz' \
+INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+INPUT_PATH_FILTER="" \
+INPUT_TAG_PREFIX="" \
+INPUT_FAIL_ON_ERROR="true" \
+run_create_release
+
+asset_call="$(cat "${CALL_LOG}")"
+check_contains "assets-overlap: recursive pattern includes nested file" \
+  "dist/nested/app.tar.gz" "${asset_call}"
+check_contains "assets-overlap: path containing spaces retained" \
+  "dist/file name.tar.gz" "${asset_call}"
+asset_count="$(grep -oF 'dist/app.tar.gz' "${CALL_LOG}" | wc -l | tr -d ' ')"
+check "assets-overlap: duplicate argument removed" "1" "${asset_count}"
 
 # ── Test 10: asset-paths with ** recursive glob (regression for globstar fix)
 : > "${CALL_LOG}"
-mkdir -p "${TMPDIR}/dist/nested"
 echo "wheel content" > "${TMPDIR}/dist/nested/app.whl"
 
 INPUT_TAG="v0.2.0" \

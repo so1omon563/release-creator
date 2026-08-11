@@ -264,12 +264,29 @@ if [[ -n "${ASSET_PATHS}" ]]; then
         [[ -f "${file}" ]] && asset_files+=("${file}")
       done < <(find "${dir}" -name "${name}" -type f 2>/dev/null || true)
     else
-      # Flat pattern: find -path handles single-level wildcards (e.g. dist/*.tar.gz)
-      while IFS= read -r -d $'\0' file; do
+      # Ordinary shell globs preserve directory depth (e.g. dist/*.tar.gz).
+      while IFS= read -r file; do
         [[ -f "${file}" ]] && asset_files+=("${file}")
-      done < <(find . -path "./${pattern}" -print0 2>/dev/null || true)
+      done < <(compgen -G "${pattern}" || true)
     fi
   done <<< "${ASSET_PATHS}"
+
+  unique_asset_files=()
+  for file in "${asset_files[@]}"; do
+    duplicate=false
+    if [[ "${#unique_asset_files[@]}" -gt 0 ]]; then
+      for existing_file in "${unique_asset_files[@]}"; do
+        if [[ "${existing_file}" == "${file}" ]]; then
+          duplicate=true
+          break
+        fi
+      done
+    fi
+    [[ "${duplicate}" == "false" ]] && unique_asset_files+=("${file}")
+  done
+  if [[ "${#unique_asset_files[@]}" -gt 0 ]]; then
+    asset_files=("${unique_asset_files[@]}")
+  fi
 
   if [[ "${#asset_files[@]}" -gt 0 ]]; then
     log "Assets to upload: ${asset_files[*]}"
