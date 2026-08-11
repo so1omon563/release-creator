@@ -136,8 +136,6 @@ Use the following prefixes when creating branches:
 
 **Format:** `<prefix>/<short-description>`
 
-**Format:** `<prefix>/<short-description>`
-
 **Example:** `feat/add-release-notes-grouping`
 
 ### Making Changes
