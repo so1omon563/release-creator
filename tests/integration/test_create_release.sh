@@ -129,6 +129,10 @@ case "${1:-}" in
       exit 0
     fi
     if [[ "${2:-}" == "repos/{owner}/{repo}/commits/"* ]]; then
+      if [[ -n "${MOCK_REMOTE_TAG_MISSING:-}" &&
+            "${2}" == "repos/{owner}/{repo}/commits/${MOCK_REMOTE_TAG_MISSING}" ]]; then
+        exit 1
+      fi
       printf '%s\n' "${MOCK_TARGET_SHA:-$(git rev-parse HEAD)}"
       exit 0
     fi
@@ -520,6 +524,44 @@ move_major_output="$(
 
 check_contains "move-major-tag: log says Moved v0" "Moved v0." "${move_major_output}"
 check_contains "move-major-tag: gh api called for v0" "git/refs" "$(cat "${CALL_LOG}")"
+
+# ── Test 14b: a new release tag pins creation and floating refs to one SHA ──
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+export MOCK_REMOTE_TAG_MISSING="v99.0.0"
+MOCK_TARGET_SHA="$(git rev-parse HEAD)"
+export MOCK_TARGET_SHA
+
+new_tag_output="$(
+  INPUT_TAG="v99.0.0" \
+  INPUT_RELEASE_NAME="" \
+  INPUT_BODY="stable release" \
+  INPUT_DRAFT="false" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_ASSET_PATHS="" \
+  INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+  INPUT_PATH_FILTER="" \
+  INPUT_TAG_PREFIX="v" \
+  INPUT_FAIL_ON_ERROR="true" \
+  INPUT_MOVE_MAJOR_TAG="true" \
+  INPUT_MOVE_MINOR_TAG="false" \
+  GITHUB_REPOSITORY="test/repo" \
+  run_create_release 2>&1
+)"
+
+new_tag_call="$(cat "${CALL_LOG}")"
+check_contains "new-floating-tag: release pinned to target SHA" \
+  "release create v99.0.0 --title v99.0.0 --target ${MOCK_TARGET_SHA}" "${new_tag_call}"
+check_contains "new-floating-tag: floating ref uses target SHA" \
+  "sha=${MOCK_TARGET_SHA}" "${new_tag_call}"
+check_contains "new-floating-tag: outputs emitted" \
+  "created<<EOF_OUTPUT" "$(cat "${GITHUB_OUTPUT}")"
+check_contains "new-floating-tag: completes successfully" "Done." "${new_tag_output}"
+unset MOCK_REMOTE_TAG_MISSING MOCK_TARGET_SHA
 
 # ── Test 15: move-minor-tag moves the minor floating pointer tag ───────────
 : > "${CALL_LOG}"

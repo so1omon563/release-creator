@@ -102,21 +102,25 @@ if [[ -z "${TO_TAG}" ]]; then
   TO_TAG="${TAG}"
 fi
 
-# GitHub-native notes and a newly created tag must resolve the same immutable
-# endpoint. Existing tags ignore target-commitish, but the API still accepts
-# their commit SHA.
-NATIVE_TARGET_SHA=""
-if [[ -z "${BODY}" && "${NOTES_FORMAT}" == "github-native" ]]; then
-  if ! NATIVE_TARGET_SHA="$(git rev-parse --verify "refs/tags/${TAG}^{commit}" 2>/dev/null)"; then
-    native_target_ref="${TARGET_COMMITISH}"
-    if [[ -z "${native_target_ref}" ]]; then
-      if ! native_target_ref="$(gh api "repos/{owner}/{repo}" --jq '.default_branch')"; then
-        die "Could not determine the repository default branch for GitHub-native release notes."
+# Release creation, GitHub-native notes, and floating tags must use one
+# immutable commit. Existing tags ignore target-commitish, but the API still
+# accepts their commit SHA.
+RELEASE_TARGET_SHA=""
+if [[ ( -z "${BODY}" && "${NOTES_FORMAT}" == "github-native" ) ||
+      "${MOVE_MAJOR_TAG}" == "true" || "${MOVE_MINOR_TAG}" == "true" ]]; then
+  if ! RELEASE_TARGET_SHA="$(git rev-parse --verify "refs/tags/${TAG}^{commit}" 2>/dev/null)"; then
+    encoded_tag="${TAG//\//%2F}"
+    if ! RELEASE_TARGET_SHA="$(gh api "repos/{owner}/{repo}/commits/${encoded_tag}" --jq '.sha' 2>/dev/null)"; then
+      release_target_ref="${TARGET_COMMITISH}"
+      if [[ -z "${release_target_ref}" ]]; then
+        if ! release_target_ref="$(gh api "repos/{owner}/{repo}" --jq '.default_branch')"; then
+          die "Could not determine the repository default branch for the release target."
+        fi
       fi
-    fi
-    native_target_ref="${native_target_ref//\//%2F}"
-    if ! NATIVE_TARGET_SHA="$(gh api "repos/{owner}/{repo}/commits/${native_target_ref}" --jq '.sha')"; then
-      die "Could not resolve target-commitish to a commit for GitHub-native release notes."
+      release_target_ref="${release_target_ref//\//%2F}"
+      if ! RELEASE_TARGET_SHA="$(gh api "repos/{owner}/{repo}/commits/${release_target_ref}" --jq '.sha')"; then
+        die "Could not resolve target-commitish to a commit for release creation."
+      fi
     fi
   fi
 fi
@@ -140,11 +144,11 @@ if [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
       if ! to_commit="$(git rev-parse --verify "${TO_TAG}^{commit}" 2>/dev/null)"; then
         if [[ "${NOTES_FORMAT}" == "github-native" &&
               "${TO_TAG}" == "${TAG}" &&
-              -n "${NATIVE_TARGET_SHA}" ]]; then
-          if ! git rev-parse --verify "${NATIVE_TARGET_SHA}^{commit}" &>/dev/null; then
-            die "Resolved target commit ${NATIVE_TARGET_SHA} is not available locally for from-tag inference. Fetch the target history or set from-tag explicitly."
+              -n "${RELEASE_TARGET_SHA}" ]]; then
+          if ! git rev-parse --verify "${RELEASE_TARGET_SHA}^{commit}" &>/dev/null; then
+            die "Resolved target commit ${RELEASE_TARGET_SHA} is not available locally for from-tag inference. Fetch the target history or set from-tag explicitly."
           fi
-          to_commit="${NATIVE_TARGET_SHA}"
+          to_commit="${RELEASE_TARGET_SHA}"
         else
           die "Cannot infer from-tag because to-tag ${TO_TAG} is not available locally. Fetch full history and tags with actions/checkout fetch-depth: 0, or set from-tag explicitly."
         fi
@@ -197,7 +201,7 @@ if [[ -z "${BODY}" ]]; then
       "repos/{owner}/{repo}/releases/generate-notes"
       "-f" "tag_name=${TAG}"
     )
-    GENERATE_NOTES_ARGS+=("-f" "target_commitish=${NATIVE_TARGET_SHA}")
+    GENERATE_NOTES_ARGS+=("-f" "target_commitish=${RELEASE_TARGET_SHA}")
     if [[ -n "${FROM_TAG}" ]]; then
       GENERATE_NOTES_ARGS+=("-f" "previous_tag_name=${FROM_TAG}")
     fi
@@ -234,8 +238,8 @@ if [[ "${PRERELEASE}" == "true" ]]; then
   GH_ARGS+=("--prerelease")
 fi
 
-if [[ -n "${NATIVE_TARGET_SHA}" ]]; then
-  GH_ARGS+=("--target" "${NATIVE_TARGET_SHA}")
+if [[ -n "${RELEASE_TARGET_SHA}" ]]; then
+  GH_ARGS+=("--target" "${RELEASE_TARGET_SHA}")
 elif [[ -n "${TARGET_COMMITISH}" ]]; then
   GH_ARGS+=("--target" "${TARGET_COMMITISH}")
 fi
@@ -327,7 +331,7 @@ if [[ "${MOVE_MAJOR_TAG}" == "true" || "${MOVE_MINOR_TAG}" == "true" ]]; then
       # Resolve commit SHA and GitHub repo slug for API-based tag movement.
       # Using the GitHub REST API avoids git-push permission restrictions that
       # GitHub Actions GITHUB_TOKEN has for refs containing workflow files.
-      _commit_sha="$(git rev-parse "${TAG}^{}" 2>/dev/null || git rev-parse "${TAG}")"
+      _commit_sha="${RELEASE_TARGET_SHA}"
       _gh_repo="${GITHUB_REPOSITORY:-}"
       if [[ -z "${_gh_repo}" ]]; then
         _remote_url="$(git remote get-url origin 2>/dev/null || true)"
