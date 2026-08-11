@@ -85,6 +85,3 @@ body:
       placeholder: "e.g. ubuntu-latest"
     validations:
       required: false
-
-    validations:
-      required: false

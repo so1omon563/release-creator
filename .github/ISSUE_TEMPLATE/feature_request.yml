@@ -64,6 +64,3 @@ body:
         Have you considered any workarounds or alternative approaches? Describe them here.
     validations:
       required: false
-
-    validations:
-      required: false
