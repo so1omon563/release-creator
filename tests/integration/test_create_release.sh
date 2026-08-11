@@ -667,6 +667,37 @@ prerelease_move_output="$(
 check_contains "floating-tags-prerelease: skip log message present" "Skipping floating pointer tag movement" "${prerelease_move_output}"
 check_not_contains "floating-tags-prerelease: v0 not moved" "Moved v0." "${prerelease_move_output}"
 
+# ── Test 16b: floating tags skipped for drafts ────────────────────────────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+draft_move_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_RELEASE_NAME="" \
+  INPUT_BODY="draft release" \
+  INPUT_DRAFT="true" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_ASSET_PATHS="" \
+  INPUT_SKIP_IF_RELEASE_EXISTS="false" \
+  INPUT_PATH_FILTER="" \
+  INPUT_TAG_PREFIX="v" \
+  INPUT_FAIL_ON_ERROR="true" \
+  INPUT_MOVE_MAJOR_TAG="true" \
+  INPUT_MOVE_MINOR_TAG="true" \
+  GITHUB_REPOSITORY="test/repo" \
+  run_create_release 2>&1
+)"
+
+check_contains "floating-tags-draft: release remains a draft" \
+  "--draft" "$(cat "${CALL_LOG}")"
+check_contains "floating-tags-draft: skip log message present" \
+  "Skipping floating pointer tag movement" "${draft_move_output}"
+check_not_contains "floating-tags-draft: no floating ref mutation" \
+  "git/refs" "$(cat "${CALL_LOG}")"
+
 # ── Test 17: major-only tag (e.g. "v1") with move-minor-tag does not produce bogus minor tag
 git tag v5
 : > "${CALL_LOG}"

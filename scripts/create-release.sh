@@ -305,8 +305,8 @@ upload_url="$(echo "${release_json}" | python3 -c "import sys,json; print(json.l
 # Only move floating tags for stable releases. Pre-releases must not update
 # floating pointer tags because consumers who pin to @v1 expect stability.
 if [[ "${MOVE_MAJOR_TAG}" == "true" || "${MOVE_MINOR_TAG}" == "true" ]]; then
-  if [[ "${PRERELEASE}" == "true" ]]; then
-    log "Skipping floating pointer tag movement for pre-release tag ${TAG}."
+  if [[ "${PRERELEASE}" == "true" || "${DRAFT}" == "true" ]]; then
+    log "Skipping floating pointer tag movement for draft or pre-release tag ${TAG}."
   else
     # Parse MAJOR and MINOR from the tag.
     # Strip prefix → strip build metadata → strip pre-release label → split on '.'
