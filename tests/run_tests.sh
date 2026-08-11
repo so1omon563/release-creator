@@ -13,18 +13,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TESTS_DIR="${REPO_ROOT}/tests"
 
 SUITE="${1:-all}"
-PASS=0
-FAIL=0
+SUITES_RUN=0
 SKIP=0
 
 # ── Colour helpers ─────────────────────────────────────────────────────────
 GREEN='\033[0;32m'
-RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-pass() { echo -e "${GREEN}PASS${NC} $*"; ((PASS++)) || true; }
-fail() { echo -e "${RED}FAIL${NC} $*"; ((FAIL++)) || true; }
 skip() { echo -e "${YELLOW}SKIP${NC} $*"; ((SKIP++)) || true; }
 
 run_suite() {
@@ -36,6 +32,7 @@ run_suite() {
     echo "  Suite: ${name}"
     echo "══════════════════════════════════════════"
     bash "${script}"
+    SUITES_RUN=$((SUITES_RUN + 1))
   else
     skip "Suite ${name}: ${script} not found"
   fi
@@ -71,7 +68,7 @@ if [[ "${SUITE}" == "bats" || "${SUITE}" == "all" ]]; then
     echo "  Suite: BATS"
     echo "══════════════════════════════════════════"
     bats "${TESTS_DIR}/bats/" --tap || { echo "BATS tests failed"; exit 1; }
-    echo "  Note: BATS results shown in TAP output above; not included in totals below."
+    SUITES_RUN=$((SUITES_RUN + 1))
   else
     skip "BATS tests: bats-core not installed (brew install bats-core)"
   fi
@@ -79,7 +76,5 @@ fi
 
 echo ""
 echo "════════════════════════════════════════════"
-echo -e "  Results: ${GREEN}${PASS} passed${NC}  ${RED}${FAIL} failed${NC}  ${YELLOW}${SKIP} skipped${NC}"
+echo -e "  Results: ${GREEN}${SUITES_RUN} suites passed${NC}  ${YELLOW}${SKIP} skipped${NC}"
 echo "════════════════════════════════════════════"
-
-[[ ${FAIL} -eq 0 ]]
