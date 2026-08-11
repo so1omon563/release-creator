@@ -221,8 +221,8 @@ jobs:
 | `path-filter` | — | `''` | Scope custom-format notes to commits touching this path; unsupported with `github-native` |
 | `tag-prefix` | — | `''` | Prefix for version comparisons and automatic `from-tag` selection (e.g. `services/auth/`). Match this to `tag_prefix` in the semver bumper when chaining. |
 | `fail-on-error` | — | `true` | Fail the step on error; `false` logs and exits cleanly |
-| `move-major-tag` | — | `false` | Move the major floating pointer tag (e.g. `v1`) to the release commit. Skipped automatically for pre-releases. |
-| `move-minor-tag` | — | `false` | Move the minor floating pointer tag (e.g. `v1.3`) to the release commit. Skipped automatically for pre-releases. |
+| `move-major-tag` | — | `false` | Move the major floating pointer tag (e.g. `v1`) to the release commit. Skipped automatically for drafts and pre-releases. |
+| `move-minor-tag` | — | `false` | Move the minor floating pointer tag (e.g. `v1.3`) to the release commit. Skipped automatically for drafts and pre-releases. |
 
 ### Outputs
 
@@ -502,9 +502,10 @@ Enable them with `move-major-tag` and/or `move-minor-tag`:
     move-minor-tag: 'true'   # v1.3 → v1.3.2's commit
 ```
 
-Both inputs are **skipped automatically for pre-release tags** (any tag with a SemVer §9
-pre-release identifier, e.g. `-rc.1`). Floating pointer tags must only reference stable
-commits — moving `v1` to a `-rc.1` commit would break consumers who pin to `@v1`.
+Both inputs are **skipped automatically for draft releases and pre-release tags** (any
+tag with a SemVer §9 pre-release identifier, e.g. `-rc.1`). Floating pointer tags must
+only reference published stable commits — moving `v1` to a draft or `-rc.1` commit would
+break consumers who pin to `@v1`.
 
 **When using with [`custom-semver-bumper`](https://github.com/so1omon563/custom-semver-bumper):**
 Always set `move-major-tag` / `move-minor-tag` here in the release creator, **not** on

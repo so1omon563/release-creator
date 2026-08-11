@@ -128,17 +128,18 @@ inputs:
     default: 'false'
     description: >-
       Move the major floating pointer tag (e.g. v1) to point to the commit
-      this release was created from. Skipped automatically when the release
-      is detected as a pre-release — floating pointer tags must only ever
-      reference stable commits.
+      this release was created from. Skipped automatically for draft releases
+      and when the release is detected as a pre-release — floating pointer
+      tags must only ever reference published stable commits.
 
   move-minor-tag:
     required: false
     default: 'false'
     description: >-
       Move the minor floating pointer tag (e.g. v1.3) to point to the commit
-      this release was created from. Skipped automatically when the release
-      is detected as a pre-release — same reason as move-major-tag.
+      this release was created from. Skipped automatically for draft releases
+      and when the release is detected as a pre-release — same reason as
+      move-major-tag.
 
 outputs:
   release-url:
