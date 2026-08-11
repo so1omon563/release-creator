@@ -319,6 +319,72 @@ run_create_release || true
 soft_fail_output="$(cat "${GITHUB_OUTPUT}")"
 check_contains "soft-fail: created=false" "false" "${soft_fail_output}"
 
+# ── Test 4b: constrained inputs reject invalid values before side effects ─
+invalid_boolean_inputs=(
+  "INPUT_DRAFT:draft"
+  "INPUT_SKIP_IF_RELEASE_EXISTS:skip-if-release-exists"
+  "INPUT_FAIL_ON_ERROR:fail-on-error"
+  "INPUT_MOVE_MAJOR_TAG:move-major-tag"
+  "INPUT_MOVE_MINOR_TAG:move-minor-tag"
+)
+
+for invalid_case in "${invalid_boolean_inputs[@]}"; do
+  variable="${invalid_case%%:*}"
+  input_name="${invalid_case#*:}"
+  : > "${CALL_LOG}"
+  exit_code=0
+  invalid_output="$(
+    export INPUT_TAG="v0.2.0"
+    export INPUT_BODY="explicit body"
+    export INPUT_DRAFT="false"
+    export INPUT_PRERELEASE="false"
+    export INPUT_NOTES_FORMAT="grouped"
+    export INPUT_SKIP_IF_RELEASE_EXISTS="false"
+    export INPUT_FAIL_ON_ERROR="true"
+    export INPUT_MOVE_MAJOR_TAG="false"
+    export INPUT_MOVE_MINOR_TAG="false"
+    export "${variable}=invalid"
+    run_create_release 2>&1
+  )" || exit_code=$?
+  check "invalid-${input_name}: exits non-zero" "1" "${exit_code}"
+  check_contains "invalid-${input_name}: actionable error" \
+    "${input_name} must be" "${invalid_output}"
+  check_not_contains "invalid-${input_name}: no release mutation" \
+    "release create" "$(cat "${CALL_LOG}")"
+done
+
+: > "${CALL_LOG}"
+exit_code=0
+invalid_prerelease_output="$(
+  INPUT_TAG="v2.1.0-rc.1" \
+  INPUT_BODY="explicit body" \
+  INPUT_PRERELEASE="ture" \
+  INPUT_NOTES_FORMAT="grouped" \
+  INPUT_FAIL_ON_ERROR="true" \
+  run_create_release 2>&1
+)" || exit_code=$?
+check "invalid-prerelease: exits non-zero" "1" "${exit_code}"
+check_contains "invalid-prerelease: actionable error" \
+  "prerelease must be true, false, or auto" "${invalid_prerelease_output}"
+check_not_contains "invalid-prerelease: no release mutation" \
+  "release create" "$(cat "${CALL_LOG}")"
+
+: > "${CALL_LOG}"
+exit_code=0
+invalid_notes_output="$(
+  INPUT_TAG="v0.2.0" \
+  INPUT_BODY="explicit body" \
+  INPUT_PRERELEASE="false" \
+  INPUT_NOTES_FORMAT="markdown" \
+  INPUT_FAIL_ON_ERROR="true" \
+  run_create_release 2>&1
+)" || exit_code=$?
+check "invalid-notes-format: exits non-zero" "1" "${exit_code}"
+check_contains "invalid-notes-format: actionable error" \
+  "notes-format must be grouped" "${invalid_notes_output}"
+check_not_contains "invalid-notes-format: no release mutation" \
+  "release create" "$(cat "${CALL_LOG}")"
+
 # ── Test 5: Explicit prerelease=true ─────────────────────────────────────
 : > "${CALL_LOG}"
 : > "${GITHUB_OUTPUT}"

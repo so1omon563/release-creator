@@ -31,7 +31,7 @@ log()  { echo "[release-creator] $*"; }
 warn() { echo "[release-creator] WARNING: $*" >&2; }
 die()  {
   echo "[release-creator] ERROR: $*" >&2
-  if [[ "${FAIL_ON_ERROR:-true}" == "true" ]]; then
+  if [[ "${FAIL_ON_ERROR:-true}" != "false" ]]; then
     exit 1
   else
     set_output "created" "false"
@@ -86,6 +86,31 @@ fi
 if [[ -z "${GH_TOKEN:-}" ]]; then
   die "token input is required."
 fi
+
+validate_boolean_input() {
+  local input_name="$1"
+  local value="$2"
+  case "${value}" in
+    true|false) ;;
+    *) die "${input_name} must be true or false; got '${value}'." ;;
+  esac
+}
+
+validate_boolean_input "draft" "${DRAFT}"
+validate_boolean_input "skip-if-release-exists" "${SKIP_IF_EXISTS}"
+validate_boolean_input "fail-on-error" "${FAIL_ON_ERROR}"
+validate_boolean_input "move-major-tag" "${MOVE_MAJOR_TAG}"
+validate_boolean_input "move-minor-tag" "${MOVE_MINOR_TAG}"
+
+case "${PRERELEASE}" in
+  true|false|auto) ;;
+  *) die "prerelease must be true, false, or auto; got '${PRERELEASE}'." ;;
+esac
+
+case "${NOTES_FORMAT}" in
+  grouped|conventional|flat|github-native) ;;
+  *) die "notes-format must be grouped, conventional, flat, or github-native; got '${NOTES_FORMAT}'." ;;
+esac
 
 log "Processing release for tag: ${TAG}"
 
