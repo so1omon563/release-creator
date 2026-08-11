@@ -241,7 +241,9 @@ if [[ -z "${BODY}" ]]; then
   else
     log "Generating release notes (format: ${NOTES_FORMAT})..."
     export FROM_TAG TO_TAG NOTES_FORMAT PATH_FILTER ACTION_PATH
-    BODY="$(bash "${ACTION_PATH}/scripts/generate-notes.sh")"
+    if ! BODY="$(bash "${ACTION_PATH}/scripts/generate-notes.sh")"; then
+      die "Could not generate release notes for ${FROM_TAG:-the start of history}..${TO_TAG}."
+    fi
     log "Release notes generated (${#BODY} chars)."
   fi
 else
