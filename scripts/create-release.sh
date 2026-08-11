@@ -57,7 +57,10 @@ set_output() {
 
 # ── Read inputs ──────────────────────────────────────────────────────────────
 ACTION_PATH="${ACTION_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-TAG="${INPUT_TAG:-${GITHUB_REF_NAME:-}}"
+TAG="${INPUT_TAG:-}"
+if [[ -z "${TAG}" && "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+  TAG="${GITHUB_REF_NAME:-}"
+fi
 RELEASE_NAME="${INPUT_RELEASE_NAME:-}"
 BODY="${INPUT_BODY:-}"
 DRAFT="${INPUT_DRAFT:-false}"
