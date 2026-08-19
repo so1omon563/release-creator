@@ -73,8 +73,9 @@ inputs:
       Typically the previous published release tag. When omitted, the action
       uses the latest published GitHub Release matching tag-prefix that is a
       local ancestor of to-tag, or full history when none exists. With
-      github-native and no local Git repository, GitHub selects the previous
-      tag.
+      github-native, no local Git repository, and no tag-prefix, GitHub selects
+      the previous tag. Set from-tag explicitly when using tag-prefix without
+      a local repository.
     required: false
     default: ''
 

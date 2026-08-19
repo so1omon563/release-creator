@@ -83,6 +83,11 @@ cat > "${MOCK_GH}" << 'EOF'
 
 CALL_LOG="${MOCK_GH_CALL_LOG:-/tmp/mock_gh_calls.log}"
 
+if [[ -z "${GH_REPO:-}" ]] && ! git rev-parse --git-dir &>/dev/null; then
+  echo "unable to determine repository context" >&2
+  exit 1
+fi
+
 case "${1:-}" in
   release)
     case "${2:-}" in
@@ -971,7 +976,7 @@ exit_code=0
 
 no_repo_native_output="$(
   cd "${NO_REPO_DIR}"
-  GH_REPO="test/target" \
+  GITHUB_REPOSITORY="test/target" \
   INPUT_TAG="v9.0.0" \
   INPUT_BODY="" \
   INPUT_PRERELEASE="false" \
@@ -979,7 +984,7 @@ no_repo_native_output="$(
   INPUT_NOTES_FORMAT="github-native" \
   INPUT_FROM_TAG="" \
   INPUT_TO_TAG="" \
-  INPUT_TAG_PREFIX="v" \
+  INPUT_TAG_PREFIX="" \
   INPUT_FAIL_ON_ERROR="true" \
   run_create_release 2>&1
 )" || exit_code=$?
@@ -996,7 +1001,37 @@ check_contains "github-native-no-repo: release created" \
   "release create v9.0.0" "${no_repo_native_call}"
 unset MOCK_RELEASE_TAGS MOCK_TARGET_SHA
 
-# ── Test 19d: unavailable native target fails before range generation ─────
+# ── Test 19d: git-free native notes require from-tag with tag-prefix ────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+export MOCK_TARGET_SHA="3333333333333333333333333333333333333333"
+exit_code=0
+
+no_repo_prefix_output="$(
+  cd "${NO_REPO_DIR}"
+  GITHUB_REPOSITORY="test/target" \
+  INPUT_TAG="api/v9.0.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="main" \
+  INPUT_NOTES_FORMAT="github-native" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_TAG_PREFIX="api/" \
+  INPUT_FAIL_ON_ERROR="true" \
+  run_create_release 2>&1
+)" || exit_code=$?
+
+check "github-native-no-repo-prefix: exits non-zero" "1" "${exit_code}"
+check_contains "github-native-no-repo-prefix: requires explicit range" \
+  "Set from-tag explicitly" "${no_repo_prefix_output}"
+check_not_contains "github-native-no-repo-prefix: preview not called" \
+  "releases/generate-notes" "$(cat "${CALL_LOG}")"
+check_not_contains "github-native-no-repo-prefix: release create not called" \
+  "release create" "$(cat "${CALL_LOG}")"
+unset MOCK_TARGET_SHA
+
+# ── Test 19e: unavailable native target fails before range generation ─────
 : > "${CALL_LOG}"
 : > "${GITHUB_OUTPUT}"
 export MOCK_RELEASE_TAGS="v0.1.0"
