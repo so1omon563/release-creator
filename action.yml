@@ -72,7 +72,9 @@ inputs:
       Start of the commit range used for release note generation (exclusive).
       Typically the previous published release tag. When omitted, the action
       uses the latest published GitHub Release matching tag-prefix that is a
-      local ancestor of to-tag, or full history when none exists.
+      local ancestor of to-tag, or full history when none exists. With
+      github-native and no local Git repository, GitHub selects the previous
+      tag.
     required: false
     default: ''
 

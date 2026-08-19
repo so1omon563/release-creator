@@ -154,7 +154,11 @@ if [[ ( -z "${BODY}" && "${NOTES_FORMAT}" == "github-native" ) ||
 fi
 
 # ── Resolve FROM_TAG ─────────────────────────────────────────────────────────
-if [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
+if [[ -z "${BODY}" && -z "${FROM_TAG}" &&
+      "${NOTES_FORMAT}" == "github-native" ]] &&
+    ! git rev-parse --git-dir &>/dev/null; then
+  log "No local Git repository; leaving from-tag to GitHub's default."
+elif [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
   if ! release_tags="$(gh release list --exclude-drafts --limit 1000 \
       --json tagName --jq '.[].tagName')"; then
     die "Could not list published releases. Check token permissions/authentication, or set from-tag explicitly."

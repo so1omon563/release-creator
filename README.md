@@ -186,7 +186,8 @@ jobs:
 1. Reads the tag input (or infers it from `github.ref_name` on tag-push triggers)
 2. Resolves the commit range (`from-tag` to `to-tag`), using the latest published GitHub
    Release matching `tag-prefix` that is a local ancestor of `to-tag` when omitted
-   (or full history when none exists)
+   (or full history when none exists); without a local repository, `github-native`
+   leaves previous-tag selection to GitHub
 3. Filters commits in that range (excludes merge commits; optionally scopes to a path)
 4. Parses [Conventional Commits][cc-spec] to group by type
 5. Generates release notes in the requested format
@@ -197,7 +198,7 @@ jobs:
 ## Requirements
 
 - **`gh` CLI** — pre-installed on all GitHub-hosted runners
-- **`fetch-depth: 0`** — required for full tag history access
+- **`fetch-depth: 0`** — required for custom note formats and local range inference
 - **`contents: write` permission** — required to create releases
 
 ## Configuration
@@ -214,7 +215,7 @@ jobs:
 | `prerelease` | — | `auto` | `true`, `false`, or `auto` (inspect tag — see [Pre-release Auto-detection](#pre-release-auto-detection)) |
 | `target-commitish` | — | `''` | Branch or SHA to tag from |
 | `notes-format` | — | `grouped` | `grouped`, `conventional`, `flat`, or `github-native` |
-| `from-tag` | — | latest published ancestor | Start of commit range for notes (exclusive); constrained by `tag-prefix` and local ancestry; full history when no matching Release exists |
+| `from-tag` | — | latest published ancestor | Start of commit range for notes (exclusive); constrained by `tag-prefix` and local ancestry; with `github-native` and no local repository, GitHub selects the previous tag |
 | `to-tag` | — | `tag` value | End of commit range for notes (inclusive); must equal `tag` with `github-native` |
 | `asset-paths` | — | `''` | Newline-separated glob patterns for assets to upload |
 | `skip-if-release-exists` | — | `false` | Exit successfully without error if release already exists |
@@ -445,9 +446,11 @@ Plain descriptions with no type prefix:
 Uses GitHub's built-in release notes API. The action previews the generated body,
 validates GitHub's 125000-character limit, and then creates the release with the
 validated notes. An explicit `from-tag` is forwarded as the API's
-`previous_tag_name`. Because GitHub generates notes for the release tag and does
-not support path filtering, `to-tag` must equal `tag` and `path-filter` cannot be
-used with this format.
+`previous_tag_name`. When `from-tag` is omitted and no local Git repository is
+available, the action omits `previous_tag_name` so GitHub selects the previous tag.
+Because GitHub generates notes for the release tag and does not support path
+filtering, `to-tag` must equal `tag` and `path-filter` cannot be used with this
+format.
 
 ## Pre-release Auto-detection
 
