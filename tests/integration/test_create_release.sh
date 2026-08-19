@@ -55,8 +55,9 @@ check_not_contains() {
 
 # ── Setup test environment ────────────────────────────────────────────────
 TMPDIR="$(mktemp -d /tmp/rc_test_integration_XXXXXX)"
+NO_REPO_DIR="$(mktemp -d /tmp/rc_test_no_repo_XXXXXX)"
 # shellcheck disable=SC2064
-trap "rm -rf '${TMPDIR}'" EXIT
+trap "rm -rf '${TMPDIR}' '${NO_REPO_DIR}'" EXIT
 
 # Set up a fake git repo
 cd "${TMPDIR}"
@@ -81,6 +82,11 @@ cat > "${MOCK_GH}" << 'EOF'
 # Mock gh CLI that records invocations and returns fake JSON
 
 CALL_LOG="${MOCK_GH_CALL_LOG:-/tmp/mock_gh_calls.log}"
+
+if [[ -z "${GH_REPO:-}" ]] && ! git rev-parse --git-dir &>/dev/null; then
+  echo "unable to determine repository context" >&2
+  exit 1
+fi
 
 case "${1:-}" in
   release)
@@ -961,7 +967,71 @@ check_contains "github-native-new-tag: release pinned to target SHA" \
   "--target ${MOCK_TARGET_SHA}" "${new_native_call}"
 unset MOCK_RELEASE_TAGS MOCK_TARGET_SHA
 
-# ── Test 19c: unavailable native target fails before range generation ─────
+# ── Test 19c: native notes work without a local repository ───────────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+export MOCK_RELEASE_TAGS="v0.1.0"
+export MOCK_TARGET_SHA="2222222222222222222222222222222222222222"
+exit_code=0
+
+no_repo_native_output="$(
+  cd "${NO_REPO_DIR}"
+  GITHUB_REPOSITORY="test/target" \
+  INPUT_TAG="v9.0.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="main" \
+  INPUT_NOTES_FORMAT="github-native" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_TAG_PREFIX="" \
+  INPUT_FAIL_ON_ERROR="true" \
+  run_create_release 2>&1
+)" || exit_code=$?
+
+no_repo_native_call="$(cat "${CALL_LOG}")"
+check "github-native-no-repo: exits zero" "0" "${exit_code}"
+check_contains "github-native-no-repo: GitHub selects previous tag" \
+  "leaving from-tag to GitHub's default" "${no_repo_native_output}"
+check_contains "github-native-no-repo: preview called" \
+  "releases/generate-notes" "${no_repo_native_call}"
+check_not_contains "github-native-no-repo: previous tag omitted" \
+  "previous_tag_name" "${no_repo_native_call}"
+check_contains "github-native-no-repo: release created" \
+  "release create v9.0.0" "${no_repo_native_call}"
+unset MOCK_RELEASE_TAGS MOCK_TARGET_SHA
+
+# ── Test 19d: git-free native notes require from-tag with tag-prefix ────
+: > "${CALL_LOG}"
+: > "${GITHUB_OUTPUT}"
+export MOCK_TARGET_SHA="3333333333333333333333333333333333333333"
+exit_code=0
+
+no_repo_prefix_output="$(
+  cd "${NO_REPO_DIR}"
+  GITHUB_REPOSITORY="test/target" \
+  INPUT_TAG="api/v9.0.0" \
+  INPUT_BODY="" \
+  INPUT_PRERELEASE="false" \
+  INPUT_TARGET_COMMITISH="main" \
+  INPUT_NOTES_FORMAT="github-native" \
+  INPUT_FROM_TAG="" \
+  INPUT_TO_TAG="" \
+  INPUT_TAG_PREFIX="api/" \
+  INPUT_FAIL_ON_ERROR="true" \
+  run_create_release 2>&1
+)" || exit_code=$?
+
+check "github-native-no-repo-prefix: exits non-zero" "1" "${exit_code}"
+check_contains "github-native-no-repo-prefix: requires explicit range" \
+  "Set from-tag explicitly" "${no_repo_prefix_output}"
+check_not_contains "github-native-no-repo-prefix: preview not called" \
+  "releases/generate-notes" "$(cat "${CALL_LOG}")"
+check_not_contains "github-native-no-repo-prefix: release create not called" \
+  "release create" "$(cat "${CALL_LOG}")"
+unset MOCK_TARGET_SHA
+
+# ── Test 19e: unavailable native target fails before range generation ─────
 : > "${CALL_LOG}"
 : > "${GITHUB_OUTPUT}"
 export MOCK_RELEASE_TAGS="v0.1.0"

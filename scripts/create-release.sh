@@ -87,6 +87,10 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
   die "token input is required."
 fi
 
+if [[ -z "${GH_REPO:-}" && -n "${GITHUB_REPOSITORY:-}" ]]; then
+  export GH_REPO="${GITHUB_REPOSITORY}"
+fi
+
 validate_boolean_input() {
   local input_name="$1"
   local value="$2"
@@ -154,7 +158,14 @@ if [[ ( -z "${BODY}" && "${NOTES_FORMAT}" == "github-native" ) ||
 fi
 
 # ── Resolve FROM_TAG ─────────────────────────────────────────────────────────
-if [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
+if [[ -z "${BODY}" && -z "${FROM_TAG}" &&
+      "${NOTES_FORMAT}" == "github-native" ]] &&
+    ! git rev-parse --git-dir &>/dev/null; then
+  if [[ -n "${TAG_PREFIX}" ]]; then
+    die "Cannot infer from-tag with tag-prefix outside a local Git repository. Set from-tag explicitly."
+  fi
+  log "No local Git repository; leaving from-tag to GitHub's default."
+elif [[ -z "${BODY}" && -z "${FROM_TAG}" ]]; then
   if ! release_tags="$(gh release list --exclude-drafts --limit 1000 \
       --json tagName --jq '.[].tagName')"; then
     die "Could not list published releases. Check token permissions/authentication, or set from-tag explicitly."
